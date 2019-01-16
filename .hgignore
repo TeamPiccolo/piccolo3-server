@@ -7,3 +7,9 @@ syntax: glob
 *.dark
 *~
 
+docs/_build
+build
+dist
+piccolo3_server.egg-info
+
+.eggs

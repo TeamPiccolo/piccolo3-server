@@ -56,6 +56,8 @@ if __name__ == '__main__':
     psysinfo = PiccoloSysinfo()
     
     root = piccoloSysinfoSite(psysinfo)
+    root.add_resource(('.well-known', 'core'),
+                      resource.WKCResource(root.get_resources_as_linkheader))
     asyncio.Task(aiocoap.Context.create_server_context(root))
 
     asyncio.get_event_loop().run_forever()

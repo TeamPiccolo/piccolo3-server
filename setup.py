@@ -25,6 +25,9 @@ setup(
     setup_requires=['setuptools_scm'],
     include_package_data = True,
     install_requires = [
+        'psutil',
+        'aiocoap',
+        'pytz',
     ],
     entry_points={
     },
