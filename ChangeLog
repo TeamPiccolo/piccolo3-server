@@ -1,3 +1,7 @@
+2019-01-16 Magnus Hagdorn
+ * piccolo3/server/resourceSysinfo.py: add resource for discovery
+ * setup.py: list required packages
+
 2018-12-13 Magnus Hagdorn
  * piccolo3/server/PiccoloComponent.py: base class for piccolo components
  * piccolo3/server/PiccoloSysinfo.py: a piccolo component to handle system
