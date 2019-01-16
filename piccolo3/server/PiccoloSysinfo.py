@@ -49,8 +49,23 @@ if __name__ == '__main__':
     piccoloLogging(debug=True)
 
     ps = PiccoloSysinfo()
-    print (ps.get_cpu())
-    print (ps.get_mem())
-    print (ps.get_host())
-    print (ps.get_clock())
+    
+    if True:
+        import asyncio
+        import aiocoap.resource as resource
+        import aiocoap
+
+        root = ps.coapSite
+        root.add_resource(('.well-known', 'core'),
+                          resource.WKCResource(root.get_resources_as_linkheader))
+        asyncio.Task(aiocoap.Context.create_server_context(root))
+
+        asyncio.get_event_loop().run_forever()
+
+    else:
+        print (ps.get_cpu())
+        print (ps.get_mem())
+        print (ps.get_host())
+        print (ps.get_clock())
+    
     

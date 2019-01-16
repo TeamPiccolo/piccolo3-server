@@ -1,4 +1,10 @@
 2019-01-16 Magnus Hagdorn
+ * piccolo3/server/PiccoloComponent.py: use a metaclass to automatically 
+   generate CoAP resources from appropriately named methods
+ * piccolo3/server/PiccoloSysinfo.py: try out CoAP resources
+ * piccolo3/server/resourceSysinfo.py: not needed anymore
+
+2019-01-16 Magnus Hagdorn
  * piccolo3/server/resourceSysinfo.py: add resource for discovery
  * setup.py: list required packages
 

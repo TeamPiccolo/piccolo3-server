@@ -21,20 +21,67 @@
 """
 
 import logging
+import aiocoap.resource as resource
+import aiocoap
+import functools
 
 __all__ = ['PiccoloBaseComponent','PiccoloNamedComponent']
 
-class PiccoloBaseComponent:
+class PiccoloCoAPSite(type):
+    """
+    metaclass used to automatically create coap resources
+    """
+    def __call__(cls,*args, **kwargs ):
+        x = super().__call__(*args,**kwargs)
+
+        for a in dir(x):
+            if a.startswith('get_'):
+                path = a[4:]
+                x.coapResources.add_resource([path],PiccoloROResource(x,path))
+
+        return x
+
+class PiccoloROResource(resource.Resource):
+    """
+    a read-only CoAP resource
+    """
+    def __init__(self,component,path):
+        """
+        :param component: the piccolo component
+        :param path: path to access the resouce
+        """
+
+        self._component = component
+
+        self._method = 'get_'+path
+        assert hasattr(self._component, self._method)
+
+    def get(self):
+        return str(getattr(self._component,self._method)()).encode()
+
+    async def render_get(self, request):
+        return aiocoap.Message(payload=self.get())
+    
+class PiccoloBaseComponent(metaclass=PiccoloCoAPSite):
     """
     base class for all components of the piccolo server
     """
 
     LOGBASE = 'component'
-
+    
     def __init__(self):
         self._log = logging.getLogger('piccolo.{0}'.format(self.LOGBASE))
+        self._coapResources = resource.Site()
         self.log.debug("initialised")
 
+    @property
+    def coapResources(self):
+        return self._coapResources
+
+    @property
+    def coapSite(self):
+        return self._coapResources
+        
     @property
     def log(self):
         """get the logger"""
@@ -61,6 +108,13 @@ class PiccoloNamedComponent(PiccoloBaseComponent):
         """the name of the component"""
         return self._name
 
+    @property
+    def coapSite(self):
+        site = resource.Site()
+        site.add_resource([self.name],self.coapResources)
+        return site
+
+    
 if __name__ == '__main__':
     from piccoloLogging import *
     piccoloLogging(debug=True)
@@ -68,3 +122,4 @@ if __name__ == '__main__':
     pc.log.info('hello')
     pnc = PiccoloNamedComponent('test')
     pnc.log.info('hello')
+
