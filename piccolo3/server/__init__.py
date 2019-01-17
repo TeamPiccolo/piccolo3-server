@@ -1,4 +1,4 @@
-# Copyright 2018- The Piccolo Team
+# Copyright 2014-2016 The Piccolo Team
 #
 # This file is part of piccolo3-server.
 #
@@ -15,9 +15,15 @@
 # You should have received a copy of the GNU General Public License
 # along with piccolo3-server.  If not, see <http://www.gnu.org/licenses/>.
 
+from pkg_resources import get_distribution, DistributionNotFound
 try:
-    __import__('pkg_resources').declare_namespace(__name__)
-except ImportError as e:
-    e.args += ("Cannot start Piccolo Server due to an import error. The reason may be that Python Setuptools is not installed.", )
-    raise(e)
+    __version__ = get_distribution('piccolo3-server').version
+except DistributionNotFound:
+    # package is not installed
+    pass
 
+from .piccoloLogging import *
+from .PiccoloServerConfig import *
+from .PiccoloConfig import *
+
+from .PiccoloSysinfo import *

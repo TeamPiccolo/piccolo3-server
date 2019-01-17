@@ -126,10 +126,10 @@ class PiccoloBaseComponent(metaclass=PiccoloCoAPSite):
     base class for all components of the piccolo server
     """
 
-    LOGBASE = 'component'
+    NAME = 'component'
     
     def __init__(self):
-        self._log = logging.getLogger('piccolo.{0}'.format(self.LOGBASE))
+        self._log = logging.getLogger('piccolo.{0}'.format(self.NAME))
         self._coapResources = resource.Site()
         self.log.debug("initialised")
 
@@ -139,7 +139,7 @@ class PiccoloBaseComponent(metaclass=PiccoloCoAPSite):
 
     @property
     def coapSite(self):
-        return self._coapResources
+        return ((self.NAME,),self.coapResources)
         
     @property
     def log(self):
@@ -151,7 +151,7 @@ class PiccoloNamedComponent(PiccoloBaseComponent):
     a component with a name
     """
 
-    LOGBASE = 'named_component'
+    NAME = 'named_component'
 
     def __init__(self,name):
         """
@@ -159,7 +159,7 @@ class PiccoloNamedComponent(PiccoloBaseComponent):
         """
 
         self._name = name
-        self._log = logging.getLogger('piccolo.{0}.{1}'.format(self.LOGBASE,name))
+        self._log = logging.getLogger('piccolo.{0}.{1}'.format(self.NAME,name))
         self.log.debug("initialised")
 
     @property
@@ -169,10 +169,7 @@ class PiccoloNamedComponent(PiccoloBaseComponent):
 
     @property
     def coapSite(self):
-        site = resource.Site()
-        site.add_resource([self.name],self.coapResources)
-        return site
-
+        return ((self.NAME,self.name),self.coapResources)
     
 if __name__ == '__main__':
     from piccoloLogging import *

@@ -20,7 +20,7 @@
 
 """
 
-from PiccoloComponent import PiccoloBaseComponent
+from .PiccoloComponent import PiccoloBaseComponent
 import psutil
 import socket
 from datetime import datetime
@@ -30,7 +30,7 @@ import subprocess
 class PiccoloSysinfo(PiccoloBaseComponent):
     """piccolo system information"""
     
-    LOGBASE = 'sysinfo'
+    NAME = 'sysinfo'
 
     def get_cpu(self):
         """get cpu usage (percent)"""

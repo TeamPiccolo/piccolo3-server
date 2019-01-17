@@ -28,8 +28,14 @@ setup(
         'psutil',
         'aiocoap',
         'pytz',
+        'configobj',
+        'python-daemon',
+        'lockfile',
     ],
     entry_points={
+        'console_scripts': [
+            'piccolo3-server = piccolo3.pserver:main',
+        ],
     },
 
     # metadata for upload to PyPI
