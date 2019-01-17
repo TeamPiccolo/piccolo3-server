@@ -20,6 +20,8 @@
 
 """
 
+__all__ = ['PiccoloSysinfo']
+
 from .PiccoloComponent import PiccoloBaseComponent
 import psutil
 import socket
@@ -56,7 +58,7 @@ class PiccoloSysinfo(PiccoloBaseComponent):
                                                               cmdPipe.stderr.read().decode()))
 
 if __name__ == '__main__':
-    from piccoloLogging import *
+    from .piccoloLogging import *
     piccoloLogging(debug=True)
 
     ps = PiccoloSysinfo()
@@ -66,7 +68,8 @@ if __name__ == '__main__':
         import aiocoap.resource as resource
         import aiocoap
 
-        root = ps.coapSite
+        root = resource.Site()
+        root.add_resource(*ps.coapSite)
         root.add_resource(('.well-known', 'core'),
                           resource.WKCResource(root.get_resources_as_linkheader))
         asyncio.Task(aiocoap.Context.create_server_context(root))

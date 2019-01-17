@@ -1,4 +1,9 @@
 2019-01-17 Magnus Hagdorn
+ * piccolo3/server/PiccoloComponent.py: fix relative import
+ * piccolo3/server/PiccoloSysinfo.py: fix relative import and running module
+   stand-alone
+
+2019-01-17 Magnus Hagdorn
  * setup.py: add some more dependencies and install server script
  * piccolo3/__init__.py: tidy up package name
  * piccolo3/pserver.py: start new piccolo server based on CoAP
