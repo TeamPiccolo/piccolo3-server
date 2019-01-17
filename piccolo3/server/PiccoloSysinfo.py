@@ -25,6 +25,7 @@ import psutil
 import socket
 from datetime import datetime
 from pytz import utc
+import subprocess
 
 class PiccoloSysinfo(PiccoloBaseComponent):
     """piccolo system information"""
@@ -43,6 +44,16 @@ class PiccoloSysinfo(PiccoloBaseComponent):
     def get_clock(self):
         """get the current date and time"""
         return datetime.now(tz=utc).isoformat()
+    def set_clock(self,clock):
+        """set the current date and time
+
+        :param clock: isoformat date and time string used to set the time"""
+        self.log.debug('setting system time to \'{}\''.format(clock))
+        cmdPipe = subprocess.Popen(['sudo','date','-s',clock],
+                                   stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        if cmdPipe.wait()!=0:
+            raise OSError('setting time to \'{}\': {}'.format(clock,
+                                                              cmdPipe.stderr.read().decode()))
 
 if __name__ == '__main__':
     from piccoloLogging import *

@@ -1,3 +1,7 @@
+2019-01-17 Magnus Hagdorn
+ * piccolo3/server/PiccoloComponent.py: add option to handle put requests
+ * piccolo3/server/PiccoloSysinfo.py: add method to set system clock
+
 2019-01-16 Magnus Hagdorn
  * piccolo3/server/PiccoloComponent.py: use a metaclass to automatically 
    generate CoAP resources from appropriately named methods

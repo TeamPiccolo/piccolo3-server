@@ -24,6 +24,7 @@ import logging
 import aiocoap.resource as resource
 import aiocoap
 import functools
+import json
 
 __all__ = ['PiccoloBaseComponent','PiccoloNamedComponent']
 
@@ -37,7 +38,10 @@ class PiccoloCoAPSite(type):
         for a in dir(x):
             if a.startswith('get_'):
                 path = a[4:]
-                x.coapResources.add_resource([path],PiccoloROResource(x,path))
+                if 'set_'+path in dir(x):
+                    x.coapResources.add_resource([path],PiccoloRWResource(x,path))
+                else:
+                    x.coapResources.add_resource([path],PiccoloROResource(x,path))
 
         return x
 
@@ -53,14 +57,69 @@ class PiccoloROResource(resource.Resource):
 
         self._component = component
 
-        self._method = 'get_'+path
-        assert hasattr(self._component, self._method)
+        self._get_method = 'get_'+path
+        assert hasattr(self._component, self._get_method)
 
+    @property
+    def log(self):
+        return self._component.log
+        
     def get(self):
-        return str(getattr(self._component,self._method)()).encode()
+        return str(getattr(self._component,self._get_method)()).encode()
 
     async def render_get(self, request):
         return aiocoap.Message(payload=self.get())
+
+class PiccoloRWResource(PiccoloROResource):
+    """
+    a read-write CoAP resource
+    """
+    def __init__(self,component,path):
+        """
+        :param component: the piccolo component
+        :param path: path to access the resouce
+        """
+
+        PiccoloROResource.__init__(self,component,path)
+
+        self._set_method = 'set_'+path
+        assert hasattr(self._component, self._set_method)
+
+    def set(self,*args,**kwargs):
+        getattr(self._component,self._set_method)(*args,**kwargs)
+
+    async def render_put(self, request):
+        # convert payload to json
+        try:
+            data = json.loads(request.payload.decode())
+        except Exception as e:
+            e = str(e)
+            self.log.error(e)
+            return aiocoap.Message(code=aiocoap.BAD_REQUEST, payload=e.encode())
+        # payload can be
+        if isinstance(data,list):
+            # a list
+            if len(data) == 2 and isinstance(data[0],list) and isinstance(data[1],dict):
+                args = data[0]
+                kwargs = data[1]
+            else:
+                args = data
+                kwargs = {}
+        elif isinstance(data,dict):
+            # a dictionary
+            args = []
+            kwargs = data
+        else:
+            # or a single value
+            args = [data]
+            kwargs = {}
+        try:
+            self.set(*args,**kwargs)
+        except Exception as e:
+            e = str(e)
+            self.log.error(e)
+            return aiocoap.Message(code=aiocoap.BAD_REQUEST, payload=e.encode())
+        return aiocoap.Message(code=aiocoap.CHANGED, payload=self.get())
     
 class PiccoloBaseComponent(metaclass=PiccoloCoAPSite):
     """
