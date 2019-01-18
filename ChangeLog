@@ -1,3 +1,8 @@
+2019-01-18 Magnus Hagdorn
+ * piccolo3/server/PiccoloComponent.py: add decorator functions to define CoAP
+   operations; use single class to handle CoAP resources
+ * piccolo3/server/PiccoloSysinfo.py: use new decorators
+
 2019-01-17 Magnus Hagdorn
  * piccolo3/server/PiccoloComponent.py: fix relative import
  * piccolo3/server/PiccoloSysinfo.py: fix relative import and running module

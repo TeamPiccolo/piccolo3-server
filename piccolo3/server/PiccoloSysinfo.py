@@ -22,7 +22,7 @@
 
 __all__ = ['PiccoloSysinfo']
 
-from .PiccoloComponent import PiccoloBaseComponent
+from .PiccoloComponent import PiccoloBaseComponent, piccoloGET, piccoloPUT
 import psutil
 import socket
 from datetime import datetime
@@ -34,18 +34,23 @@ class PiccoloSysinfo(PiccoloBaseComponent):
     
     NAME = 'sysinfo'
 
+    @piccoloGET
     def get_cpu(self):
         """get cpu usage (percent)"""
         return psutil.cpu_percent()
+    @piccoloGET
     def get_mem(self):
         """get memory usage (percent)"""
         return psutil.virtual_memory().percent
+    @piccoloGET
     def get_host(self):
         """get hostname"""
         return socket.gethostname()
+    @piccoloGET
     def get_clock(self):
         """get the current date and time"""
         return datetime.now(tz=utc).isoformat()
+    @piccoloPUT
     def set_clock(self,clock):
         """set the current date and time
 

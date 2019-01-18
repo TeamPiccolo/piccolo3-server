@@ -26,8 +26,39 @@ import aiocoap
 import functools
 import json
 
-__all__ = ['PiccoloBaseComponent','PiccoloNamedComponent']
+__all__ = ['PiccoloBaseComponent','PiccoloNamedComponent','piccoloGET', 'piccoloPUT']
 
+def _extract_path(f,prefix,path):
+    if path is None:
+        if f.__name__.startswith(prefix):
+            p = f.__name__[len(prefix):]
+        else:
+            p = f.__name__
+    else:
+        p = path
+    return p
+        
+
+def piccoloGET(_func=None,*, path=None):
+    @functools.wraps(_func)
+    def decorator_get(func):
+        func.GET = (_extract_path(func,'get_',path),{})
+        return func
+    if _func is None:
+        return decorator_get
+    else:
+        return decorator_get(_func)
+
+def piccoloPUT(_func=None,*, path=None):
+    @functools.wraps(_func)
+    def decorator_put(func):
+        func.PUT = (_extract_path(func,'set_',path),{})
+        return func
+    if _func is None:
+        return decorator_put
+    else:
+        return decorator_put(_func)
+    
 class PiccoloCoAPSite(type):
     """
     metaclass used to automatically create coap resources
@@ -35,60 +66,55 @@ class PiccoloCoAPSite(type):
     def __call__(cls,*args, **kwargs ):
         x = super().__call__(*args,**kwargs)
 
+        x._resources = {}        
         for a in dir(x):
-            if a.startswith('get_'):
-                path = a[4:]
-                if 'set_'+path in dir(x):
-                    x.coapResources.add_resource([path],PiccoloRWResource(x,path))
-                else:
-                    x.coapResources.add_resource([path],PiccoloROResource(x,path))
-
+            attrib = getattr(x,a)
+            for m in ['GET','PUT']:
+                if hasattr(attrib,m):
+                    path,kwargs  = getattr(attrib,m)
+                    if path not in x._resources:
+                        x._resources[path] = {}
+                    if m in x._resources[path]:
+                        raise RuntimeError('CoAP operation %s already defined for path %s'%(m,path))
+                    x._resources[path][m] = (a,kwargs)
+        for p in x._resources:
+            x.coapResources.add_resource([p],PiccoloResource(x,x._resources[p]))
         return x
 
-class PiccoloROResource(resource.Resource):
+class PiccoloResource(resource.Resource):
     """
-    a read-only CoAP resource
+    a CoAP resource
     """
-    def __init__(self,component,path):
-        """
-        :param component: the piccolo component
-        :param path: path to access the resouce
-        """
-
+    def __init__(self,component,spec):
         self._component = component
+        self._spec = spec
 
-        self._get_method = 'get_'+path
-        assert hasattr(self._component, self._get_method)
-
+        self._get = None
+        self._put = None
+        if 'GET' in self._spec:
+            self._get = getattr(self._component,self._spec['GET'][0])
+        if 'PUT' in self._spec:
+            self._put = getattr(self._component,self._spec['PUT'][0])
+        
     @property
     def log(self):
         return self._component.log
-        
-    def get(self):
-        return str(getattr(self._component,self._get_method)()).encode()
 
     async def render_get(self, request):
-        return aiocoap.Message(payload=self.get())
-
-class PiccoloRWResource(PiccoloROResource):
-    """
-    a read-write CoAP resource
-    """
-    def __init__(self,component,path):
-        """
-        :param component: the piccolo component
-        :param path: path to access the resouce
-        """
-
-        PiccoloROResource.__init__(self,component,path)
-
-        self._set_method = 'set_'+path
-        assert hasattr(self._component, self._set_method)
-
-    def set(self,*args,**kwargs):
-        getattr(self._component,self._set_method)(*args,**kwargs)
+        if self._get is None:
+            return aiocoap.Message(code=aiocoap.METHOD_NOT_ALLOWED)
+        try:
+            result = json.dumps(self._get())
+            code = aiocoap.CONTENT
+        except Exception as e:
+            result = str(e)
+            self.log.error(result)
+            code = aiocoap.INTERNAL_SERVER_ERROR
+        return aiocoap.Message(code=code,payload=result.encode())
 
     async def render_put(self, request):
+        if self._put is None:
+            return aiocoap.Message(code=aiocoap.METHOD_NOT_ALLOWED)    
         # convert payload to json
         try:
             data = json.loads(request.payload.decode())
@@ -114,12 +140,12 @@ class PiccoloRWResource(PiccoloROResource):
             args = [data]
             kwargs = {}
         try:
-            self.set(*args,**kwargs)
+            result = self._put(*args,**kwargs)
         except Exception as e:
             e = str(e)
             self.log.error(e)
             return aiocoap.Message(code=aiocoap.BAD_REQUEST, payload=e.encode())
-        return aiocoap.Message(code=aiocoap.CHANGED, payload=self.get())
+        return aiocoap.Message(code=aiocoap.CHANGED, payload=result)
     
 class PiccoloBaseComponent(metaclass=PiccoloCoAPSite):
     """
