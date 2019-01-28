@@ -39,10 +39,10 @@ def _extract_path(f,prefix,path):
     return p
         
 
-def piccoloGET(_func=None,*, path=None):
+def piccoloGET(_func=None,*, path=None, observable=False):
     @functools.wraps(_func)
     def decorator_get(func):
-        func.GET = (_extract_path(func,'get_',path),{})
+        func.GET = (_extract_path(func,'get_',path),{"observable":observable})
         return func
     if _func is None:
         return decorator_get
@@ -73,12 +73,14 @@ class PiccoloCoAPSite(type):
                 if hasattr(attrib,m):
                     path,kwargs  = getattr(attrib,m)
                     if path not in x._resources:
-                        x._resources[path] = {}
+                        x._resources[path] = {"resource_type":PiccoloResource}
                     if m in x._resources[path]:
                         raise RuntimeError('CoAP operation %s already defined for path %s'%(m,path))
                     x._resources[path][m] = (a,kwargs)
+                    if m == 'GET' and kwargs["observable"]:
+                        x._resources[path]["resource_type"] = PiccoloObservalbeResource
         for p in x._resources:
-            x.coapResources.add_resource([p],PiccoloResource(x,x._resources[p]))
+            x.coapResources.add_resource([p], x._resources[p]["resource_type"](x,x._resources[p]))
         return x
 
 class PiccoloResource(resource.Resource):
@@ -86,6 +88,7 @@ class PiccoloResource(resource.Resource):
     a CoAP resource
     """
     def __init__(self,component,spec):
+        super().__init__()
         self._component = component
         self._spec = spec
 
@@ -100,11 +103,16 @@ class PiccoloResource(resource.Resource):
     def log(self):
         return self._component.log
 
+    def notify(self):
+        pass
+    
     async def render_get(self, request):
         if self._get is None:
             return aiocoap.Message(code=aiocoap.METHOD_NOT_ALLOWED)
         try:
+            self.log.debug('calling {}'.format(self._get.__name__))
             result = json.dumps(self._get())
+            self.log.debug('result: %s'%(result))
             code = aiocoap.CONTENT
         except Exception as e:
             result = str(e)
@@ -139,13 +147,28 @@ class PiccoloResource(resource.Resource):
             # or a single value
             args = [data]
             kwargs = {}
+        self.log.debug('calling {}, args={}, kwargs={}'.format(self._put.__name__,args,kwargs))
         try:
             result = self._put(*args,**kwargs)
+        except Warning as e:
+            e = str(e)
+            self.log.warning(e)
+            return aiocoap.Message(code=aiocoap.BAD_REQUEST, payload=e.encode())
         except Exception as e:
             e = str(e)
             self.log.error(e)
             return aiocoap.Message(code=aiocoap.BAD_REQUEST, payload=e.encode())
-        return aiocoap.Message(code=aiocoap.CHANGED, payload=result)
+        if result is not None:
+            result = json.dumps(result)
+        else:
+            result = ""
+        self.log.debug('result: %s'%(result))
+        self.notify()
+        return aiocoap.Message(code=aiocoap.CHANGED, payload=result.encode())
+
+class PiccoloObservalbeResource(PiccoloResource,resource.ObservableResource):
+    def notify(self):
+        self.updated_state()
     
 class PiccoloBaseComponent(metaclass=PiccoloCoAPSite):
     """
