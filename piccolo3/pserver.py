@@ -30,10 +30,17 @@ def piccolo_server(serverCfg):
     log.info("piccolo3 server version %s"%piccolo.__version__)
 
     psys = piccolo.PiccoloSysinfo()
+    pdata = piccolo.PiccoloDataDir(serverCfg.cfg['datadir']['datadir'],
+                                   device=serverCfg.cfg['datadir']['device'],
+                                   mntpnt=serverCfg.cfg['datadir']['mntpnt'],
+                                   mount=serverCfg.cfg['datadir']['mount'])
 
+    
     root = resource.Site()
     # add the components
-    root.add_resource(*psys.coapSite)
+    for c in [psys,pdata]:
+        root.add_resource(*c.coapSite)
+
 
     root.add_resource(('.well-known', 'core'),
                       resource.WKCResource(root.get_resources_as_linkheader))

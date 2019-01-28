@@ -1,4 +1,8 @@
 2019-01-28 Magnus Hagdorn
+ * piccolo3/pserver.py: add data directory
+ * piccolo3/server/__init__.py: import data directory
+
+2019-01-28 Magnus Hagdorn
  * piccolo3/server/PiccoloComponent.py: add option to make a resource a
    subsite
  * piccolo3/server/PiccoloDataDir.py: make runs a subsite
