@@ -22,10 +22,25 @@
 
 __all__ = ['PiccoloDataDir']
 
-from .PiccoloComponent import PiccoloBaseComponent, piccoloGET, piccoloPUT
+from .PiccoloComponent import PiccoloBaseComponent, PiccoloNamedComponent, piccoloGET, piccoloPUT
 import os, os.path
 import subprocess
 
+class PiccoloRunDir(PiccoloNamedComponent):
+    NAME = 'run'
+
+    def __init__(self,datadir,run):
+        """
+        :param datadir: the data directory object
+        :param run: the name of the run
+        """
+        super().__init__(run)
+        self.datadir = datadir
+
+    @piccoloGET
+    def get_name(self):
+        return 'hi'
+        
 class PiccoloDataDir(PiccoloBaseComponent):
     """manage piccolo output data directory"""
 
@@ -59,6 +74,10 @@ class PiccoloDataDir(PiccoloBaseComponent):
         self._check_datadir()
 
         self._current_run = None
+        self._runs = {}
+        for r in self.get_runs():
+            self.add_run(r)
+            
         self.set_current_run('spectra')
                 
     @property
@@ -71,6 +90,13 @@ class PiccoloDataDir(PiccoloBaseComponent):
     def device(self):
         return self._device
 
+    def add_run(self,run):
+        """register a new run"""
+        if run not in self._runs:
+            self._runs[run] = PiccoloRunDir(self,run)
+            self.runs_site.add_resource([run],self._runs[run].coapResources)
+        return self._runs[run]
+    
     def _check_datadir(self):
         """check if data directory exists with correct permissions, if not create it"""
         if not os.path.exists(self.datadir):
@@ -130,7 +156,7 @@ class PiccoloDataDir(PiccoloBaseComponent):
                 raise Warning("device {} is already unmounted".format(self.device))
         return msg
 
-    @piccoloPUT
+    @piccoloPUT(has_subs=True,path="runs")
     def get_runs(self,alpha=False,reverse=False,nitems=None,page=0):
         """get list of runs
         :param alpha: set to True to sort names alphanumerically, otherwise sort by time stamp
@@ -170,6 +196,7 @@ class PiccoloDataDir(PiccoloBaseComponent):
         if not os.path.isdir(r):
             self.log.debug('creating directory for run %s'%run)
             os.makedirs(r)
+            self.add_run(run)
         self._current_run = run
     
     def join(self,p):

@@ -39,20 +39,21 @@ def _extract_path(f,prefix,path):
     return p
         
 
-def piccoloGET(_func=None,*, path=None, observable=False):
+def piccoloGET(_func=None,*, path=None, observable=False, has_subs=False):
     @functools.wraps(_func)
     def decorator_get(func):
-        func.GET = (_extract_path(func,'get_',path),{"observable":observable})
+        func.GET = (_extract_path(func,'get_',path),{"observable":observable,
+                                                     "has_subs":has_subs})
         return func
     if _func is None:
         return decorator_get
     else:
         return decorator_get(_func)
 
-def piccoloPUT(_func=None,*, path=None):
+def piccoloPUT(_func=None,*, path=None, has_subs=False):
     @functools.wraps(_func)
     def decorator_put(func):
-        func.PUT = (_extract_path(func,'set_',path),{})
+        func.PUT = (_extract_path(func,'set_',path),{"has_subs":has_subs})
         return func
     if _func is None:
         return decorator_put
@@ -63,24 +64,47 @@ class PiccoloCoAPSite(type):
     """
     metaclass used to automatically create coap resources
     """
+
+    def __new__(cls, name, bases, clsdict):
+        sites = {}
+        for a in clsdict:
+            attrib = clsdict[a]
+            for m in ['GET','PUT']:
+                if (hasattr(attrib,m)):
+                    path,kwargs  = getattr(attrib,m)
+                    if kwargs['has_subs']:
+                        sites[path+'_site'] = resource.Site()
+        for s in sites:
+            clsdict[s] = sites[s]
+        clsobj = super().__new__(cls, name, bases, clsdict)
+        return clsobj
+    
     def __call__(cls,*args, **kwargs ):
         x = super().__call__(*args,**kwargs)
-
-        x._resources = {}        
+        x._resources = {}
         for a in dir(x):
             attrib = getattr(x,a)
             for m in ['GET','PUT']:
                 if hasattr(attrib,m):
                     path,kwargs  = getattr(attrib,m)
                     if path not in x._resources:
-                        x._resources[path] = {"resource_type":PiccoloResource}
+                        x._resources[path] = {"resource_type":PiccoloResource,
+                                              "sub_sites": False}
                     if m in x._resources[path]:
                         raise RuntimeError('CoAP operation %s already defined for path %s'%(m,path))
                     x._resources[path][m] = (a,kwargs)
+                    if kwargs["has_subs"]:
+                        x._resources[path]["sub_sites"] = True
                     if m == 'GET' and kwargs["observable"]:
                         x._resources[path]["resource_type"] = PiccoloObservalbeResource
         for p in x._resources:
-            x.coapResources.add_resource([p], x._resources[p]["resource_type"](x,x._resources[p]))
+            r = x._resources[p]["resource_type"](x,x._resources[p])
+            if x._resources[p]["sub_sites"]:
+                sub_site = getattr(x,p+'_site')
+                sub_site.add_resource([],r)
+                setattr(x,p,sub_site)
+                r = sub_site
+            x.coapResources.add_resource([p], r)
         return x
 
 class PiccoloResource(resource.Resource):
@@ -178,10 +202,14 @@ class PiccoloBaseComponent(metaclass=PiccoloCoAPSite):
     NAME = 'component'
     
     def __init__(self):
-        self._log = logging.getLogger('piccolo.{0}'.format(self.NAME))
+        self._log = logging.getLogger(self.logName)
         self._coapResources = resource.Site()
         self.log.debug("initialised")
 
+    @property
+    def logName(self):
+        return 'piccolo.{0}'.format(self.NAME)        
+        
     @property
     def coapResources(self):
         return self._coapResources
@@ -208,13 +236,16 @@ class PiccoloNamedComponent(PiccoloBaseComponent):
         """
 
         self._name = name
-        self._log = logging.getLogger('piccolo.{0}.{1}'.format(self.NAME,name))
-        self.log.debug("initialised")
-
+        super().__init__()
+        
     @property
     def name(self):
         """the name of the component"""
         return self._name
+
+    @property
+    def logName(self):
+        return 'piccolo.{0}.{1}'.format(self.NAME,self.name)
 
     @property
     def coapSite(self):

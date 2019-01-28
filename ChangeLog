@@ -1,4 +1,9 @@
 2019-01-28 Magnus Hagdorn
+ * piccolo3/server/PiccoloComponent.py: add option to make a resource a
+   subsite
+ * piccolo3/server/PiccoloDataDir.py: make runs a subsite
+
+2019-01-28 Magnus Hagdorn
  * piccolo3/server/PiccoloComponent.py: add option to make a CoAP resource 
    observeable 
  * piccolo3/server/PiccoloDataDir.py: add component to handle data directory
