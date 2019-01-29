@@ -1,4 +1,7 @@
 2019-01-29 Magnus Hagdorn
+ * piccolo3/server/PiccoloShutter.py: fix bug
+
+2019-01-29 Magnus Hagdorn
  * piccolo3/pserver.py: setup shutters
  * piccolo3/server/__init__.py: load new modules
  * pdata/piccolo.config: add example config

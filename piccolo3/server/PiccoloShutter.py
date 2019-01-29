@@ -175,7 +175,7 @@ class PiccoloShutters(PiccoloBaseComponent):
             raise RuntimeError('failed to initialise shutters')
 
         for s in self.shutters:
-            self.coapResources.add_resource([d],self.shutters[d].coapResources)
+            self.coapResources.add_resource([s],self.shutters[s].coapResources)
 
     @property
     def shutters(self):
