@@ -26,7 +26,7 @@ import aiocoap
 import functools
 import json
 
-__all__ = ['PiccoloBaseComponent','PiccoloNamedComponent','piccoloGET', 'piccoloPUT']
+__all__ = ['PiccoloBaseComponent','PiccoloNamedComponent','piccoloGET', 'piccoloPUT','piccoloChanged']
 
 def _extract_path(f,prefix,path):
     if path is None:
@@ -59,6 +59,16 @@ def piccoloPUT(_func=None,*, path=None, has_subs=False):
         return decorator_put
     else:
         return decorator_put(_func)
+
+def piccoloChanged(_func=None,*, path=None):
+    @functools.wraps(_func)
+    def decorator_changed(func):
+        func.CHANGED = (_extract_path(func,'callback_',path),{})
+        return func
+    if _func is None:
+        return decorator_changed
+    else:
+        return decorator_changed(_func)
     
 class PiccoloCoAPSite(type):
     """
@@ -84,7 +94,7 @@ class PiccoloCoAPSite(type):
         x._resources = {}
         for a in dir(x):
             attrib = getattr(x,a)
-            for m in ['GET','PUT']:
+            for m in ['GET','PUT','CHANGED']:
                 if hasattr(attrib,m):
                     path,kwargs  = getattr(attrib,m)
                     if path not in x._resources:
@@ -93,9 +103,11 @@ class PiccoloCoAPSite(type):
                     if m in x._resources[path]:
                         raise RuntimeError('CoAP operation %s already defined for path %s'%(m,path))
                     x._resources[path][m] = (a,kwargs)
-                    if kwargs["has_subs"]:
+                    if "has_subs" in kwargs and kwargs["has_subs"]:
                         x._resources[path]["sub_sites"] = True
                     if m == 'GET' and kwargs["observable"]:
+                        x._resources[path]["resource_type"] = PiccoloObservalbeResource
+                    if 'CHANGED' in x._resources[path]:
                         x._resources[path]["resource_type"] = PiccoloObservalbeResource
         for p in x._resources:
             r = x._resources[p]["resource_type"](x,x._resources[p])
@@ -103,8 +115,12 @@ class PiccoloCoAPSite(type):
                 sub_site = getattr(x,p+'_site')
                 sub_site.add_resource([],r)
                 setattr(x,p,sub_site)
-                r = sub_site
-            x.coapResources.add_resource([p], r)
+                x.coapResources.add_resource([p], sub_site)
+            else:
+                x.coapResources.add_resource([p], r)
+            if 'CHANGED' in x._resources[p]:
+                cb = getattr(x,x._resources[p]['CHANGED'][0])
+                cb(r.notify)
         return x
 
 class PiccoloResource(resource.Resource):
@@ -187,7 +203,8 @@ class PiccoloResource(resource.Resource):
         else:
             result = ""
         self.log.debug('result: %s'%(result))
-        self.notify()
+        if len(result)>0:
+            self.notify()
         return aiocoap.Message(code=aiocoap.CHANGED, payload=result.encode())
 
 class PiccoloObservalbeResource(PiccoloResource,resource.ObservableResource):

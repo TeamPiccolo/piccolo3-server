@@ -1,5 +1,9 @@
 2019-01-29 Magnus Hagdorn
- * piccolo3/server/PiccoloShutter.py: fix bug
+ * piccolo3/server/PiccoloComponent.py: add decorator to handle callback when
+   a resource is changed
+
+2019-01-29 Magnus Hagdorn
+ *  piccolo3/server/PiccoloShutter.py: fix bug
 
 2019-01-29 Magnus Hagdorn
  * piccolo3/pserver.py: setup shutters
