@@ -1,3 +1,10 @@
+2019-01-29 Magnus Hagdorn
+ * piccolo3/pserver.py: setup shutters
+ * piccolo3/server/__init__.py: load new modules
+ * pdata/piccolo.config: add example config
+ * piccolo3/server/PiccoloConfig.py: add module to handle configuration
+ * piccolo3/server/PiccoloShutter.py: add module to handle shutters
+
 2019-01-28 Magnus Hagdorn
  * piccolo3/pserver.py: add data directory
  * piccolo3/server/__init__.py: import data directory

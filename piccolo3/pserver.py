@@ -21,7 +21,7 @@ import asyncio
 import aiocoap.resource as resource
 import aiocoap
 import logging
-import os
+import os, sys
 
 def piccolo_server(serverCfg):
 
@@ -29,16 +29,29 @@ def piccolo_server(serverCfg):
 
     log.info("piccolo3 server version %s"%piccolo.__version__)
 
+    # creat system info
     psys = piccolo.PiccoloSysinfo()
+    # create data directory
     pdata = piccolo.PiccoloDataDir(serverCfg.cfg['datadir']['datadir'],
                                    device=serverCfg.cfg['datadir']['device'],
                                    mntpnt=serverCfg.cfg['datadir']['mntpnt'],
                                    mount=serverCfg.cfg['datadir']['mount'])
+    # read the piccolo instrument configuration file
+    piccoloCfg = piccolo.PiccoloConfig()
+    cfgFilename = pdata.join(serverCfg.cfg['config']) # Usually /mnt/piccolo2_data/piccolo.config
+    piccoloCfg.readCfg(cfgFilename) 
+
+    # initialise the shutters
+    try:
+        shutters = piccolo.PiccoloShutters(piccoloCfg.cfg['channels'])
+    except:
+        log.error('failed to initialise shutters')
+        sys.exit(1)
 
     
     root = resource.Site()
     # add the components
-    for c in [psys,pdata]:
+    for c in [psys,pdata,shutters]:
         root.add_resource(*c.coapSite)
 
 
