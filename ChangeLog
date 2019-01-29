@@ -1,4 +1,10 @@
 2019-01-29 Magnus Hagdorn
+ * piccolo3/pserver.py: setup spectrometers
+ * piccolo3/server/__init__.py: load new spectrometer module
+ * piccolo3/server/PiccoloSpectrometer.py: start classes for handling 
+   spectrometers
+
+2019-01-29 Magnus Hagdorn
  * piccolo3/server/PiccoloComponent.py: add decorator to handle callback when
    a resource is changed
 

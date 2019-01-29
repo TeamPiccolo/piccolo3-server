@@ -30,3 +30,4 @@ from .PiccoloSysinfo import *
 from .PiccoloDataDir import *
 from .PiccoloConfig import *
 from .PiccoloShutter import *
+from .PiccoloSpectrometer import *

@@ -48,10 +48,17 @@ def piccolo_server(serverCfg):
         log.error('failed to initialise shutters')
         sys.exit(1)
 
-    
+    # initialise the spectrometers
+    try:
+        spectrometers = piccolo.PiccoloSpectrometers(piccoloCfg.cfg['spectrometers'])
+    except:
+        log.error('failed to initialise spectrometers')
+        sys.exit(1)
+
+        
     root = resource.Site()
     # add the components
-    for c in [psys,pdata,shutters]:
+    for c in [psys,pdata,shutters,spectrometers]:
         root.add_resource(*c.coapSite)
 
 
