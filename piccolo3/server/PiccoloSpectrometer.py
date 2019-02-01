@@ -35,7 +35,7 @@ class PiccoloSpectrometerWorker(threading.Thread):
     tasks in the background and holds on to the results until they are
     picked up."""
 
-    def __init__(self, name, spectrometer, busy, tasks, results,info,daemon=True):
+    def __init__(self, name, spectrometer, channels, busy, tasks, results,info,daemon=True):
         """Initialize the worker thread.
 
         Note: calling __init__ does not start the thread, a subsequent call to
@@ -45,6 +45,7 @@ class PiccoloSpectrometerWorker(threading.Thread):
         :type name: str
         :param spectrometer: the actual spectrometer object
         :type spectrometer: PiccoloSpectrometer
+        :param channels: the list of channels
         :param busy: a "lock" which prevents using the spectrometer when it is busy
         :type busy: thread.lock
         :param tasks: a queue into which tasks will be put
@@ -69,16 +70,22 @@ class PiccoloSpectrometerWorker(threading.Thread):
         self._iQ = info
 
         # the integration times
-        self._currentIntegrationTime = None
+        self._currentIntegrationTime = {}
+        self._auto = {}
+        self._channels = channels
+        for c in self.channels:
+            self._currentIntegrationTime[c] = None
+            self._auto[c] = None
+        
         self._maxIntegrationTime = None
         self._minIntegrationTime = None
         
-        self._auto = None
 
         self.minIntegrationTime = 0
         self.maxIntegrationTime = 10000
-        self.currentIntegrationTime = 1
-        self.auto = 'n'
+        for c in self.channels:
+            self.set_currentIntegrationTime(c,1)
+            self.set_auto(c,'n')
         
     @property
     def log(self):
@@ -100,7 +107,11 @@ class PiccoloSpectrometerWorker(threading.Thread):
     def info(self):
         """the info queue"""
         return self._iQ
+    @property
+    def channels(self):
+        return self._channels
 
+    
     @property
     def maxIntegrationTime(self):
         return self._maxIntegrationTime
@@ -111,8 +122,10 @@ class PiccoloSpectrometerWorker(threading.Thread):
             return
         self._maxIntegrationTime = t
         self.info.put(('max',t))
-        if self.currentIntegrationTime is not None and self.currentIntegrationTime>self.maxIntegrationTime:
-            self.currentIntegrationTime = self.maxIntegrationTime
+        for c in self.channels:
+            it = self.get_currentIntegrationTime(c) 
+            if it is not None and it > self.maxIntegrationTime:
+                self.set_currentIntegrationTime(c,self.maxIntegrationTime)
     @property
     def minIntegrationTime(self):
         return self._minIntegrationTime
@@ -123,34 +136,35 @@ class PiccoloSpectrometerWorker(threading.Thread):
             return
         self._minIntegrationTime = t
         self.info.put(('min',t))
-        if self.currentIntegrationTime is not None and self.currentIntegrationTime<self.minIntegrationTime:
-            self.currentIntegrationTime = self.minIntegrationTime
-    @property
-    def currentIntegrationTime(self):
-        return self._currentIntegrationTime
-    @currentIntegrationTime.setter
-    def currentIntegrationTime(self,t):
+        for c in self.channels:
+            it = self.get_currentIntegrationTime(c) 
+            if it is not None and it<self.minIntegrationTime:
+                self.set_currentIntegrationTime(c,self.minIntegrationTime)
+
+    def get_currentIntegrationTime(self,c):
+        return self._currentIntegrationTime[c]
+    def set_currentIntegrationTime(self,c,t,reset_auto = True):
         t = int(t)
-        if t == self._currentIntegrationTime:
+        if t == self._currentIntegrationTime[c]:
             return
         if self.minIntegrationTime is not None and t < self.minIntegrationTime:
             raise ValueError("integration time {} is smaller than minimum {}".format(t,self.minIntegrationTime))
         if self.maxIntegrationTime is not None and t>self.maxIntegrationTime:
             raise ValueError("integration time {} is larger than maximum {}".format(t,self.maxIntegrationTime))
-        self._currentIntegrationTime = t
-        self.info.put(('current',t))
-        # reset autointegration state
-        self.auto = 'n'
+        
+        self._currentIntegrationTime[c] = t
+        self.info.put(('current',(c,t)))
+        if reset_auto:
+            # reset autointegration state
+            self.set_auto(c,'n')
 
-    @property
-    def auto(self):
-        return self._auto
-    @auto.setter
-    def auto(self,s):
-        if s == self._auto:
+    def get_auto(self,c):
+        return self._auto[c]
+    def set_auto(self,c,s):
+        if s == self.get_auto(c):
             return
-        self._auto = s
-        self.info.put(('auto',s))
+        self._auto[c] = s
+        self.info.put(('auto',(c,s)))
         
     def run(self):
         while True:
@@ -172,7 +186,7 @@ class PiccoloSpectrometerWorker(threading.Thread):
             if task[0] == 'current':
                 result = 'ok'
                 try:
-                    self.currentIntegrationTime = task[1]
+                    self.set_currentIntegrationTime(task[1],task[2])
                 except Exception as e:
                     result = str(e)
                 self.results.put(result)
@@ -191,10 +205,14 @@ class PiccoloSpectrometerWorker(threading.Thread):
                     result = str(e)
                 self.results.put(result)
             elif task[0] == 'start_acquisition':
-                task_id = task[1]
-                self.results.put(result)
+                channel = task[1]
+                if channel not in self.channels:
+                    self.result.put('channel {} is unknown'.format(channel))
+                    continue
+                task_id = task[2]
+                self.results.put('ok')
 
-                self.log.info("acquisition {}: integration time {}".format(str(task_id),self.currentIntegrationTime))
+                self.log.info("acquisition {}: channel {}, integration time {}".format(str(task_id),channel,self.get_currentIntegrationTime[channel]))
                 # create new spectrum instance
                 spectrum = {}#PiccoloSpectrum()
                 spectrum['name'] = self.name
@@ -221,7 +239,7 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
 
     NAME = 'spectrometer'
     
-    def __init__(self,name, spectrometer=None):
+    def __init__(self,name, channels, spectrometer=None):
         """Initialize a Piccolo Spectrometer object for Piccolo Server.
 
         The spectromter parameter must be the Spectrometer object from the
@@ -231,6 +249,7 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         name is a descriptive name for the spectrometer.
 
         :param name: a descriptive name for the spectrometer.
+        :param channels: a list of channels
         :param spectrometer: the spectromtere, which may be None.
         """
 
@@ -243,17 +262,20 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         self._rQ = Queue() # Results queue.
         self._iQ = Queue() # info queue
         
-        self._currentIntegrationTime = -1
+        self._channels = channels
+        self._currentIntegrationTime = {}
+        self._auto_state = {}
         self._currentIntegrationTimeChanged = None
+        self._auto_changed = None
+        for c in channels:
+            self._currentIntegrationTime[c] = -1
+            self._auto_state[c] = None
+            
         self._maxIntegrationTime = -1
         self._maxIntegrationTimeChanged = None
         self._minIntegrationTime = -1
         self._minIntegrationTimeChanged = None
 
-        # the auto integration state
-        self._auto_state = None
-        self._auto_changed = None
-        
         # the spectrum
         self._task_id = None
         self._spectrum = None
@@ -265,6 +287,7 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
 
         # start the spectrometer worker thread
         self._spectrometer = PiccoloSpectrometerWorker(name,spectrometer,
+                                                       channels,
                                                        self._busy,
                                                        self._tQ, self._rQ,
                                                        self._iQ)
@@ -297,11 +320,13 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
                 if self._maxIntegrationTimeChanged is not None:
                     self._maxIntegrationTimeChanged()
             elif s == 'current':
-                self._currentIntegrationTime = t
+                c,t = t
+                self._currentIntegrationTime[c] = t
                 if self._currentIntegrationTimeChanged is not None:
                     self._currentIntegrationTimeChanged()
             elif s == 'auto':
-                self._auto_state = t
+                c,t = t
+                self._auto_state[c] = t
                 if self._auto_changed is not None:
                     self._auto_changed()
             elif s == 'spectrum':
@@ -316,14 +341,16 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
                 self.log.warning('unknown spec {}={}'.format(s,t))
                 continue
         
-    @piccoloGET
-    def get_current_time(self):
-        return self._currentIntegrationTime
-    @piccoloPUT
-    def set_current_time(self,t):
+    @piccoloGET(parse_path=True)
+    def get_current_time(self,channel):
+        if channel not in self._channels:
+            raise RuntimeError('unknown channel {}'.format(channel))
+        return self._currentIntegrationTime[channel]
+    @piccoloPUT(parse_path=True)
+    def set_current_time(self,channel,t):
         if self._busy.locked():
             raise Warning('spectrometer is busy')
-        self._tQ.put(('current',t))
+        self._tQ.put(('current',channel,t))
         result = self._rQ.get()
         if result != 'ok':
             raise RuntimeError(result)
@@ -361,9 +388,11 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
     def callback_max_time(self,cb):
         self._maxIntegrationTimeChanged = cb
 
-    @piccoloGET
-    def get_autointegration(self):
-        return self._auto_state
+    @piccoloGET(parse_path=True)
+    def get_autointegration(self,channel):
+        if channel not in self._channels:
+            raise RuntimeError('unknown channel {}'.format(channel))
+        return self._auto_state[channel]
     @piccoloChanged
     def callback_autointegration(self,cb):
         self._auto_changed = cb
@@ -412,7 +441,7 @@ class PiccoloSpectrometers(PiccoloBaseComponent):
     
     NAME = "spectrometer"
 
-    def __init__(self,spectrometer_cfg):
+    def __init__(self,spectrometer_cfg,channels):
         super().__init__()
 
         self._spectrometers = {}
@@ -421,7 +450,7 @@ class PiccoloSpectrometers(PiccoloBaseComponent):
         if len(self._spectrometers) == 0:
             for sn in spectrometer_cfg:
                 sname = 'S_'+sn
-                self.spectrometers[sname] = PiccoloSpectrometer(sname)
+                self.spectrometers[sname] = PiccoloSpectrometer(sname,channels)
 
         for s in self.spectrometers:
             self.coapResources.add_resource([s],self.spectrometers[s].coapResources)
@@ -466,7 +495,7 @@ if __name__ == '__main__':
         import aiocoap.resource as resource
         import aiocoap
 
-        specs = PiccoloSpectrometers(['test1','test2'])
+        specs = PiccoloSpectrometers(['test1','test2'],['up','down'])
         
         root = resource.Site()
         root.add_resource(*specs.coapSite)

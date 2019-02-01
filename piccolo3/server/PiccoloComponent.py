@@ -39,21 +39,23 @@ def _extract_path(f,prefix,path):
     return p
         
 
-def piccoloGET(_func=None,*, path=None, observable=False, has_subs=False):
+def piccoloGET(_func=None,*, path=None, observable=False, has_subs=False, parse_path=False):
     @functools.wraps(_func)
     def decorator_get(func):
         func.GET = (_extract_path(func,'get_',path),{"observable":observable,
-                                                     "has_subs":has_subs})
+                                                     "has_subs":has_subs,
+                                                     "parse_path":parse_path})
         return func
     if _func is None:
         return decorator_get
     else:
         return decorator_get(_func)
 
-def piccoloPUT(_func=None,*, path=None, has_subs=False):
+def piccoloPUT(_func=None,*, path=None, has_subs=False, parse_path=False):
     @functools.wraps(_func)
     def decorator_put(func):
-        func.PUT = (_extract_path(func,'set_',path),{"has_subs":has_subs})
+        func.PUT = (_extract_path(func,'set_',path),{"has_subs":has_subs,
+                                                     "parse_path":parse_path})
         return func
     if _func is None:
         return decorator_put
@@ -105,10 +107,18 @@ class PiccoloCoAPSite(type):
                     x._resources[path][m] = (a,kwargs)
                     if "has_subs" in kwargs and kwargs["has_subs"]:
                         x._resources[path]["sub_sites"] = True
+                    if 'parse_path' in kwargs and kwargs['parse_path']:
+                        x._resources[path]["resource_type"] = PiccoloResourcePath
                     if m == 'GET' and kwargs["observable"]:
-                        x._resources[path]["resource_type"] = PiccoloObservalbeResource
+                        if 'parse_path' in kwargs and kwargs['parse_path']:
+                            x._resources[path]["resource_type"] = PiccoloObservalbeResourcePath
+                        else:
+                            x._resources[path]["resource_type"] = PiccoloObservalbeResource
                     if 'CHANGED' in x._resources[path]:
-                        x._resources[path]["resource_type"] = PiccoloObservalbeResource
+                        if 'parse_path' in kwargs and kwargs['parse_path']:
+                            x._resources[path]["resource_type"] = PiccoloObservalbeResourcePath
+                        else:
+                            x._resources[path]["resource_type"] = PiccoloObservalbeResource
         for p in x._resources:
             r = x._resources[p]["resource_type"](x,x._resources[p])
             if x._resources[p]["sub_sites"]:
@@ -147,11 +157,16 @@ class PiccoloResource(resource.Resource):
         pass
     
     async def render_get(self, request):
+        args = request.opt.uri_path
         if self._get is None:
             return aiocoap.Message(code=aiocoap.METHOD_NOT_ALLOWED)
         try:
-            self.log.debug('calling {}'.format(self._get.__name__))
-            result = json.dumps(self._get())
+            msg = 'calling {}'.format(self._get.__name__)
+            if len(args)>0:
+                msg += ' args={}'.format(args)
+            self.log.debug(msg)
+            result = self._get(*args)
+            result = json.dumps(result)
             self.log.debug('result: %s'%(result))
             code = aiocoap.CONTENT
         except Exception as e:
@@ -161,6 +176,7 @@ class PiccoloResource(resource.Resource):
         return aiocoap.Message(code=code,payload=result.encode())
 
     async def render_put(self, request):
+        args = list(request.opt.uri_path)
         if self._put is None:
             return aiocoap.Message(code=aiocoap.METHOD_NOT_ALLOWED)    
         # convert payload to json
@@ -174,18 +190,17 @@ class PiccoloResource(resource.Resource):
         if isinstance(data,list):
             # a list
             if len(data) == 2 and isinstance(data[0],list) and isinstance(data[1],dict):
-                args = data[0]
+                args += data[0]
                 kwargs = data[1]
             else:
-                args = data
+                args += data
                 kwargs = {}
         elif isinstance(data,dict):
             # a dictionary
-            args = []
             kwargs = data
         else:
             # or a single value
-            args = [data]
+            args += [data]
             kwargs = {}
         self.log.debug('calling {}, args={}, kwargs={}'.format(self._put.__name__,args,kwargs))
         try:
@@ -210,7 +225,13 @@ class PiccoloResource(resource.Resource):
 class PiccoloObservalbeResource(PiccoloResource,resource.ObservableResource):
     def notify(self):
         self.updated_state()
-    
+        
+class PiccoloResourcePath(PiccoloResource,resource.PathCapable):
+    pass
+
+class PiccoloObservalbeResourcePath(PiccoloObservalbeResource,resource.PathCapable):
+    pass
+
 class PiccoloBaseComponent(metaclass=PiccoloCoAPSite):
     """
     base class for all components of the piccolo server
