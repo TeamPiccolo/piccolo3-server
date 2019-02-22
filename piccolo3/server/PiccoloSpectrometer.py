@@ -22,7 +22,9 @@
 
 __all__ = ['PiccoloSpectrometers']
 
+from piccolo3.common import PiccoloSpectrum
 from .PiccoloComponent import PiccoloBaseComponent, PiccoloNamedComponent, piccoloGET, piccoloPUT, piccoloChanged
+from .PiccoloWorkerThreads import PiccoloWorkerThread
 import threading
 from queue import Queue
 import logging
@@ -30,7 +32,7 @@ import uuid
 import time
 
 
-class PiccoloSpectrometerWorker(threading.Thread):
+class PiccoloSpectrometerWorker(PiccoloWorkerThread):
     """Spectrometer worker thread object. The worker thread performs assigned
     tasks in the background and holds on to the results until they are
     picked up."""
@@ -56,18 +58,7 @@ class PiccoloSpectrometerWorker(threading.Thread):
         :type info: Queue.Queue
         """
         
-        super().__init__()
-
-        self.name = name
-        self.daemon = daemon
-        
-        self._log = logging.getLogger('piccolo.spectrometer_worker.{}'.format(name))
-        self.log.info('initialising worker')
-
-        self._busy = busy
-        self._tQ = tasks
-        self._rQ = results
-        self._iQ = info
+        super().__init__('spectrometer_worker.{}'.format(name),busy, tasks, results,info,daemon=daemon)
 
         # the integration times
         self._currentIntegrationTime = {}
@@ -86,27 +77,9 @@ class PiccoloSpectrometerWorker(threading.Thread):
         for c in self.channels:
             self.set_currentIntegrationTime(c,1)
             self.set_auto(c,'n')
+
+        self._spec = spectrometer
         
-    @property
-    def log(self):
-        """the worker log"""
-        return self._log
-    @property
-    def busy(self):
-        """the busy lock"""
-        return self._busy
-    @property
-    def tasks(self):
-        """the task queue"""
-        return self._tQ
-    @property
-    def results(self):
-        """the results queue"""
-        return self._rQ
-    @property
-    def info(self):
-        """the info queue"""
-        return self._iQ
     @property
     def channels(self):
         return self._channels
@@ -166,73 +139,63 @@ class PiccoloSpectrometerWorker(threading.Thread):
         self._auto[c] = s
         self.info.put(('auto',(c,s)))
         
-    def run(self):
-        while True:
-            # wait for a new task from the task queue
-            task = self.tasks.get()
-
-            if self.busy.locked():
-                self.results.put('spectrometer {} is busy'.format(self.name))
-                continue
-            self.busy.acquire()
-            
-            self.log.debug('got task {}'.format(task))
-            if task is None:
-                # The worker thread can be stopped by putting a None onto the task queue.
-                self.info.put(None)
-                self.log.info('Stopped worker thread for specrometer {}.'.format(self.name))
+    def process_task(self,task):
+        if task[0] == 'current':
+            result = 'ok'
+            try:
+                self.set_currentIntegrationTime(task[1],task[2])
+            except Exception as e:
+                result = str(e)
+            self.results.put(result)
+        elif task[0] == 'min':
+            result = 'ok'
+            try:
+                self.minIntegrationTime = task[1]
+            except Exception as e:
+                result = str(e)
+            self.results.put(result)
+        elif task[0] == 'max':
+            result = 'ok'
+            try:
+                self.maxIntegrationTime = task[1]
+            except Exception as e:
+                result = str(e)
+            self.results.put(result)
+        elif task[0] == 'start_acquisition':
+            channel = task[1]
+            if channel not in self.channels:
+                self.result.put('channel {} is unknown'.format(channel))
                 return
+            dark = task[2]
+            task_id = task[3]
+            self.results.put('ok')
 
-            if task[0] == 'current':
-                result = 'ok'
-                try:
-                    self.set_currentIntegrationTime(task[1],task[2])
-                except Exception as e:
-                    result = str(e)
-                self.results.put(result)
-            elif task[0] == 'min':
-                result = 'ok'
-                try:
-                    self.minIntegrationTime = task[1]
-                except Exception as e:
-                    result = str(e)
-                self.results.put(result)
-            elif task[0] == 'max':
-                result = 'ok'
-                try:
-                    self.maxIntegrationTime = task[1]
-                except Exception as e:
-                    result = str(e)
-                self.results.put(result)
-            elif task[0] == 'start_acquisition':
-                channel = task[1]
-                if channel not in self.channels:
-                    self.result.put('channel {} is unknown'.format(channel))
-                    continue
-                task_id = task[2]
-                self.results.put('ok')
+            self.log.info("acquisition {}: channel {}, integration time {}".format(str(task_id),channel,self.get_currentIntegrationTime(channel)))
+            # create new spectrum instance
+            spectrum = PiccoloSpectrum()
+            spectrum['name'] = self.name
+            if dark:
+                spectrum.setDark()
+            else:
+                spectrum.setLight()
+            spectrum.setDirection(channel)
+            
+            # record data
 
-                self.log.info("acquisition {}: channel {}, integration time {}".format(str(task_id),channel,self.get_currentIntegrationTime[channel]))
-                # create new spectrum instance
-                spectrum = {}#PiccoloSpectrum()
-                spectrum['name'] = self.name
-
-                # record data
-
+            if self._spec is None:
                 # If spectrometer is None, thenm simulate a spectrometer, for
                 # testing purposes.
-                time.sleep(self.currentIntegrationTime/1000.)
+                time.sleep(self.get_currentIntegrationTime(channel)/1000.)
                 pixels = [1]*100
-
-                #spectrum.pixels = pixels
-                spectrum['data'] = 'some data'
-
-                self.info.put(('spectrum',(task_id,spectrum)))
             else:
-                result = 'unkown task: {}'.format(task)
-                self.results.put(result)
+                raise NotImplementedError
 
-            self.busy.release()
+            spectrum.pixels = pixels
+
+            self.info.put(('spectrum',(task_id,spectrum)))
+        else:
+            result = 'unkown task: {}'.format(task)
+            self.results.put(result)
                 
 class PiccoloSpectrometer(PiccoloNamedComponent):
     """frontend class used to communicate with spectrometer"""
@@ -408,14 +371,14 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         else:
             return 'idle'
 
-    def start_acquisition(self):
+    def start_acquisition(self,channel,dark=False):
         """start acquiring a spectrum"""
         if self._busy.locked():
             raise Warning('spectrometer is busy')
         if self._task_id is not None:
             raise Warning('spectrum not collected yet')
         task_id = uuid.uuid1()
-        self._tQ.put(('start_acquisition',task_id))
+        self._tQ.put(('start_acquisition',channel,dark,task_id))
         result = self._rQ.get()
         if result != 'ok':
             raise RuntimeError(result)
@@ -484,11 +447,11 @@ if __name__ == '__main__':
     piccoloLogging(debug=True)
 
 
-    if False:
-        spec = PiccoloSpectrometer('test')
-        spec.set_current_time(2000)
-        spec.start_acquisition()
-        pprint(spec.get_spectrum())
+    if True:
+        spec = PiccoloSpectrometer('test',['up','down'])
+        spec.set_current_time('up',2000)
+        spec.start_acquisition('up')
+        pprint(spec.get_spectrum().as_dict())
         spec.stop()
     else:
         import asyncio

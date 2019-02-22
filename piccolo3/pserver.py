@@ -55,10 +55,13 @@ def piccolo_server(serverCfg):
         log.error('failed to initialise spectrometers')
         sys.exit(1)
 
+    # initialise the piccolo controller
+    controller = piccolo.PiccoloControl(pdata,shutters,spectrometers)
+
         
     root = resource.Site()
     # add the components
-    for c in [psys,pdata,shutters,spectrometers]:
+    for c in [psys,pdata,shutters,spectrometers,controller]:
         root.add_resource(*c.coapSite)
 
 

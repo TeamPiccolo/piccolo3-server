@@ -31,3 +31,4 @@ from .PiccoloDataDir import *
 from .PiccoloConfig import *
 from .PiccoloShutter import *
 from .PiccoloSpectrometer import *
+from .Piccolo import *

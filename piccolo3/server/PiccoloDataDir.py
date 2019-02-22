@@ -23,7 +23,7 @@
 __all__ = ['PiccoloDataDir']
 
 from .PiccoloComponent import PiccoloBaseComponent, PiccoloNamedComponent, piccoloGET, piccoloPUT
-import os, os.path
+import os, os.path, glob
 import subprocess
 
 class PiccoloRunDir(PiccoloNamedComponent):
@@ -36,10 +36,34 @@ class PiccoloRunDir(PiccoloNamedComponent):
         """
         super().__init__(run)
         self.datadir = datadir
+        self._pattern = 'b*_s*.pico'
+        self._current_batch = -1
+        for s in self.get_spectra():
+            try:
+                b = int(s.split('_')[0][1:])
+            except:
+                pass
+            if b> self._current_batch:
+                self._current_batch = b
 
+    def get_spectra(self):
+        spectra = []
+        for s in glob.glob(os.path.join(self.datadir.join(self.name),self._pattern)):
+            spectra.append(os.path.basename(s))
+        spectra.sort()
+        return spectra
+    
+    def get_next_batch(self):
+        self._current_batch += 1
+        return self._current_batch
+    
     @piccoloGET
     def get_name(self):
-        return 'hi'
+        return self.name
+
+    @piccoloGET
+    def get_current_batch(self):
+        return self._current_batch
         
 class PiccoloDataDir(PiccoloBaseComponent):
     """manage piccolo output data directory"""
@@ -207,7 +231,20 @@ class PiccoloDataDir(PiccoloBaseComponent):
         if not os.path.isabs(p):
             return os.path.join(self.datadir,p)
         return p
- 
+
+
+    # implement methods so object can act as a read-only dictionary
+    def keys(self):
+        return self._runs.keys()
+    def __getitem__(self,r):
+        return self._runs[r]
+    def __len__(self):
+        return len(self._runss)
+    def __iter__(self):
+        for r in self._runs.keys():
+            yield r
+    def __contains__(self,r):
+        return r in self._runs
         
 if __name__ == '__main__':
     from .piccoloLogging import *

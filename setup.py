@@ -31,6 +31,7 @@ setup(
         'configobj',
         'python-daemon',
         'lockfile',
+        'LinkHeader',
     ],
     entry_points={
         'console_scripts': [

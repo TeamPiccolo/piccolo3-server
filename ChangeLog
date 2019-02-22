@@ -1,3 +1,14 @@
+2019-02-22 Magnus Hagdorn
+ * setup.py: require python package
+ * piccolo3/pserver.py: add piccolo controller
+ * piccolo3/server/Piccolo.py: new module to handle piccolo control
+ * piccolo3/server/PiccoloDataDir.py: turn PiccoloDataDir into a read-only
+   mapping; add some more methods to PiccoloRunDir
+ * piccolo3/server/PiccoloSpectrometer.py: use piccolo worker thread class; 
+   spectrometer hanlde channels; return PiccoloSprectrum object 
+ * piccolo3/server/PiccoloWorkerThreads.py: new module to handle threads
+ * piccolo3/server/__init__.py: load piccolo controller
+
 2019-02-01 Magnus Hagdorn
  * piccolo3/pserver.py: pass list of shutters to spectrometers
  * piccolo3/server/PiccoloComponent.py: allow resources to handle uri paths
