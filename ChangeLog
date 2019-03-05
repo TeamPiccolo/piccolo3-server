@@ -1,4 +1,15 @@
 2019-03-05 Magnus Hagdorn
+ * piccolo3/server/piccoloLogging.py: move to piccolo3.common
+ * piccolo3/server/__init__.py: do not load module
+ * piccolo3/pserver.py: use piccoloLogging from piccolo3.common
+ * piccolo3/server/Piccolo.py: ditto
+ * piccolo3/server/PiccoloComponent.py: ditto
+ * piccolo3/server/PiccoloDataDir.py: ditto
+ * piccolo3/server/PiccoloShutter.py: ditto
+ * piccolo3/server/PiccoloSpectrometer.py: ditto
+ * piccolo3/server/PiccoloSysinfo.py: ditto
+
+2019-03-05 Magnus Hagdorn
  * piccolo3/pserver.py: do not hide exception error
  * piccolo3/server/Piccolo.py: use asyncio task to update statusa
  * piccolo3/server/PiccoloSpectrometer.py: ditto

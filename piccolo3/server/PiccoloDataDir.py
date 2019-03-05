@@ -248,7 +248,7 @@ class PiccoloDataDir(PiccoloBaseComponent):
         return r in self._runs
         
 if __name__ == '__main__':
-    from .piccoloLogging import *
+    from piccolo3.common import piccoloLogging
     piccoloLogging(debug=True)
 
 

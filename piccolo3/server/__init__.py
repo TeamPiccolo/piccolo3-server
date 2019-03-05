@@ -22,7 +22,6 @@ except DistributionNotFound:
     # package is not installed
     pass
 
-from .piccoloLogging import *
 from .PiccoloServerConfig import *
 from .PiccoloConfig import *
 

@@ -328,7 +328,7 @@ class PiccoloControl(PiccoloBaseComponent):
 
     
 if __name__ == '__main__':
-    from .piccoloLogging import *
+    from piccolo3.common import piccoloLogging
     piccoloLogging(debug=True)
 
     

@@ -447,7 +447,7 @@ class PiccoloSpectrometers(PiccoloBaseComponent):
         return s in self.spectrometers
         
 if __name__ == '__main__':
-    from .piccoloLogging import *
+    from piccolo3.common import piccoloLogging
     from pprint import pprint
     piccoloLogging(debug=True)
 

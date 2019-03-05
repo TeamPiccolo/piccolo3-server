@@ -17,6 +17,7 @@
 # along with piccolo3-server.  If not, see <http://www.gnu.org/licenses/>.
 
 import piccolo3.server as piccolo
+from piccolo3.common import piccoloLogging
 import asyncio
 import aiocoap.resource as resource
 import aiocoap
@@ -79,8 +80,8 @@ def main():
     serverCfg = piccolo.PiccoloServerConfig()
 
     # start logging
-    handler = piccolo.piccoloLogging(logfile=serverCfg.cfg['logging']['logfile'],
-                                     debug=serverCfg.cfg['logging']['debug'])
+    handler = piccoloLogging(logfile=serverCfg.cfg['logging']['logfile'],
+                             debug=serverCfg.cfg['logging']['debug'])
     log = logging.getLogger("piccolo.server")
 
     if serverCfg.cfg['daemon']['daemon']:
