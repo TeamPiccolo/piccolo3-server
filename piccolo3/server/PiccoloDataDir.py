@@ -222,6 +222,7 @@ class PiccoloDataDir(PiccoloBaseComponent):
             os.makedirs(r)
             self.add_run(run)
         self._current_run = run
+        return self._current_run
     
     def join(self,p):
         """join path to datadir if path is not absolute

@@ -22,11 +22,12 @@
 
 __all__ = ['PiccoloSpectrometers']
 
+import asyncio
 from piccolo3.common import PiccoloSpectrum
 from .PiccoloComponent import PiccoloBaseComponent, PiccoloNamedComponent, piccoloGET, piccoloPUT, piccoloChanged
 from .PiccoloWorkerThreads import PiccoloWorkerThread
 import threading
-from queue import Queue
+from queue import Queue, Empty
 import logging
 import uuid
 import time
@@ -245,8 +246,8 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         self._have_spectrum = threading.Event()
 
         # start the info updater thread
-        self._uiThread = threading.Thread(target=self._update_info)
-        self._uiThread.start()
+        loop = asyncio.get_event_loop()
+        self._uiTask = loop.create_task(self._update_info())       
 
         # start the spectrometer worker thread
         self._spectrometer = PiccoloSpectrometerWorker(name,spectrometer,
@@ -261,11 +262,15 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         self.log.info('shutting down')
         self._tQ.put(None)
         
-    def _update_info(self):
+    async def _update_info(self):
         """thread that checks if info needs to be updated"""
 
         while True:
-            task = self._iQ.get()
+            try:
+                task = self._iQ.get(block=False)
+            except Empty:
+                await asyncio.sleep(1)
+                continue
             if task is None:
                 self.log.debug('stopping info updater thread')
                 return
@@ -447,7 +452,7 @@ if __name__ == '__main__':
     piccoloLogging(debug=True)
 
 
-    if True:
+    if False:
         spec = PiccoloSpectrometer('test',['up','down'])
         spec.set_current_time('up',2000)
         spec.start_acquisition('up')
@@ -459,12 +464,16 @@ if __name__ == '__main__':
         import aiocoap
 
         specs = PiccoloSpectrometers(['test1','test2'],['up','down'])
+
+        def start_worker_loop(loop):
+            asyncio.set_event_loop(loop)
+            loop.run_forever()
         
         root = resource.Site()
         root.add_resource(*specs.coapSite)
         root.add_resource(('.well-known', 'core'),
                           resource.WKCResource(root.get_resources_as_linkheader))
-        asyncio.Task(aiocoap.Context.create_server_context(root))
+        asyncio.Task(aiocoap.Context.create_server_context(root,loggername='piccolo.coap'))
 
         asyncio.get_event_loop().run_forever()
 

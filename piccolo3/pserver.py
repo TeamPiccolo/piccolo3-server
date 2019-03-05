@@ -51,8 +51,8 @@ def piccolo_server(serverCfg):
     # initialise the spectrometers
     try:
         spectrometers = piccolo.PiccoloSpectrometers(piccoloCfg.cfg['spectrometers'],shutters.keys())
-    except:
-        log.error('failed to initialise spectrometers')
+    except Exception as e:
+        log.error('failed to initialise spectrometers', str(e))
         sys.exit(1)
 
     # initialise the piccolo controller

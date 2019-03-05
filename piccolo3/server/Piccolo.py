@@ -22,13 +22,13 @@
 
 __all__ = ['PiccoloControl']
 
+import asyncio
 from piccolo3.common import PiccoloSpectraList
 from .PiccoloComponent import PiccoloBaseComponent, piccoloGET, piccoloPUT, piccoloChanged
 from .PiccoloWorkerThreads import PiccoloThread,PiccoloWorkerThread
 from .PiccoloDataDir import PiccoloDataDir
 from .PiccoloShutter import PiccoloShutters
 from .PiccoloSpectrometer import PiccoloSpectrometers
-
 
 from queue import Queue
 import threading
@@ -235,8 +235,8 @@ class PiccoloControl(PiccoloBaseComponent):
         self._status = ''
 
         # start the info updater thread
-        self._uiThread = threading.Thread(target=self._update_info)
-        self._uiThread.start()
+        loop = asyncio.get_event_loop()
+        self._uiTask = loop.create_task(self._update_info())
         
         self._piccolo = PiccoloControlWorker(self._datadir, self._shutters, self._spectrometers,
                                              self._busy, self._paused, self._tQ, self._rQ, self._iQ)
@@ -247,11 +247,15 @@ class PiccoloControl(PiccoloBaseComponent):
         self.log.info('shutting down')
         self._tQ.put(None)
 
-    def _update_info(self):
+    async def _update_info(self):
         """thread that checks if info needs to be updated"""
 
         while True:
-            task = self._iQ.get()
+            try:
+                task = self._iQ.get(block=False)
+            except Empty:
+                await asyncio.sleep(1)
+                continue
             if task is None:
                 self.log.debug('stopping info updater thread')
                 return
