@@ -32,6 +32,7 @@ setup(
         'python-daemon',
         'lockfile',
         'LinkHeader',
+        'janus',
     ],
     entry_points={
         'console_scripts': [

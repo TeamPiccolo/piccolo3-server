@@ -1,3 +1,9 @@
+2019-03-21 Magnus Hagdorn
+ * setup.py: require janus
+ * piccolo3/server/Piccolo.py: use janus to provide sync/async queue
+ * piccolo3/server/PiccoloSpectrometer.py: ditto, handle delays in getting
+   spectra
+
 2019-03-05 Magnus Hagdorn
  * piccolo3/server/piccoloLogging.py: move to piccolo3.common
  * piccolo3/server/__init__.py: do not load module

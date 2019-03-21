@@ -23,6 +23,7 @@
 __all__ = ['PiccoloControl']
 
 import asyncio
+import janus
 from piccolo3.common import PiccoloSpectraList
 from .PiccoloComponent import PiccoloBaseComponent, piccoloGET, piccoloPUT, piccoloChanged
 from .PiccoloWorkerThreads import PiccoloThread,PiccoloWorkerThread
@@ -192,7 +193,11 @@ class PiccoloControlWorker(PiccoloWorkerThread):
             spectra = PiccoloSpectraList(run=run_name,batch=batch,seqNr=sequence)
             for shutter in self.shutters:
                 for s in self.record(shutter):
-                    spectra.append(s)
+                    try:
+                        spectra.append(s)
+                    except:
+                        print (type(s))
+                        raise
             self.spectra.put(spectra)
             task = self.get_task(block=False)
             if task in ['abort','shutdown']:
@@ -225,7 +230,9 @@ class PiccoloControl(PiccoloBaseComponent):
         self._paused = threading.Lock()
         self._tQ = Queue() # Task queue.
         self._rQ = Queue() # Results queue.
-        self._iQ = Queue() # info queue
+
+        loop = asyncio.get_event_loop()
+        self._iQ = janus.Queue(loop=loop) # info queue
         
         self._datadir = datadir
         self._shutters = shutters
@@ -234,12 +241,11 @@ class PiccoloControl(PiccoloBaseComponent):
         self._current_sequence = -1
         self._status = ''
 
-        # start the info updater thread
-        loop = asyncio.get_event_loop()
+        # start the info updater thread        
         self._uiTask = loop.create_task(self._update_info())
         
         self._piccolo = PiccoloControlWorker(self._datadir, self._shutters, self._spectrometers,
-                                             self._busy, self._paused, self._tQ, self._rQ, self._iQ)
+                                             self._busy, self._paused, self._tQ, self._rQ, self._iQ.sync_q)
         self._piccolo.start()
 
     def stop(self):
@@ -251,11 +257,7 @@ class PiccoloControl(PiccoloBaseComponent):
         """thread that checks if info needs to be updated"""
 
         while True:
-            try:
-                task = self._iQ.get(block=False)
-            except Empty:
-                await asyncio.sleep(1)
-                continue
+            task = await self._iQ.async_q.get()
             if task is None:
                 self.log.debug('stopping info updater thread')
                 return

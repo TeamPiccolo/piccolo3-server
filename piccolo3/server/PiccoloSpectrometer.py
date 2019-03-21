@@ -28,10 +28,11 @@ from .PiccoloComponent import PiccoloBaseComponent, PiccoloNamedComponent, picco
 from .PiccoloWorkerThreads import PiccoloWorkerThread
 import threading
 from queue import Queue, Empty
+import janus
 import logging
 import uuid
 import time
-
+from collections import deque
 
 class PiccoloSpectrometerWorker(PiccoloWorkerThread):
     """Spectrometer worker thread object. The worker thread performs assigned
@@ -224,7 +225,9 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         self._busy = threading.Lock()
         self._tQ = Queue() # Task queue.
         self._rQ = Queue() # Results queue.
-        self._iQ = Queue() # info queue
+
+        loop = asyncio.get_event_loop()        
+        self._iQ = janus.Queue(loop=loop) # info queue
         
         self._channels = channels
         self._currentIntegrationTime = {}
@@ -241,20 +244,18 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         self._minIntegrationTimeChanged = None
 
         # the spectrum
-        self._task_id = None
-        self._spectrum = None
-        self._have_spectrum = threading.Event()
+        self._task_id = deque()
+        self._spectra = {}
 
         # start the info updater thread
-        loop = asyncio.get_event_loop()
-        self._uiTask = loop.create_task(self._update_info())       
+        self._uiTask = loop.create_task(self._update_info())
 
         # start the spectrometer worker thread
         self._spectrometer = PiccoloSpectrometerWorker(name,spectrometer,
                                                        channels,
                                                        self._busy,
                                                        self._tQ, self._rQ,
-                                                       self._iQ)
+                                                       self._iQ.sync_q)
         self._spectrometer.start()
 
     def stop(self):
@@ -266,11 +267,7 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         """thread that checks if info needs to be updated"""
 
         while True:
-            try:
-                task = self._iQ.get(block=False)
-            except Empty:
-                await asyncio.sleep(1)
-                continue
+            task = await self._iQ.async_q.get()
             if task is None:
                 self.log.debug('stopping info updater thread')
                 return
@@ -298,13 +295,7 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
                 if self._auto_changed is not None:
                     self._auto_changed()
             elif s == 'spectrum':
-                if t[0] == self._task_id:
-                    self._spectrum = t[1]
-                else:
-                    self.log.error('expected acquisition {} got {}'.format(str(self._task_id),str(t[0])))
-                    self._spectrum = None
-                    self._task_id = None
-                self._have_spectrum.set()
+                self._spectra[t[0]] = t[1]
             else:
                 self.log.warning('unknown spec {}={}'.format(s,t))
                 continue
@@ -380,29 +371,44 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         """start acquiring a spectrum"""
         if self._busy.locked():
             raise Warning('spectrometer is busy')
-        if self._task_id is not None:
+        if len(self._task_id)>0:
             raise Warning('spectrum not collected yet')
         task_id = uuid.uuid1()
+        self._task_id.append(task_id)        
         self._tQ.put(('start_acquisition',channel,dark,task_id))
         result = self._rQ.get()
         if result != 'ok':
+            self._task_id.pop()
             raise RuntimeError(result)
-        self._task_id = task_id
 
     def get_spectrum(self):
         """get the spectrum associated with the last acquisition"""
+        if len(self._task_id) > 0:
+            tID = self._task_id[0]
+            if tID in self._spectra:
+                s = self._spectra[tID]
+                del self._spectra[tID]
+                self._task_id.popleft()
+                self.log.info('got spectrum {} (a)'.format(tID))
+                return s
         if self._busy.locked():
-            # the spectrometer is busy wait until it is finished
-            msg='busy, waiting until spectrum {} is available'
-            timeout = None
-        else:
-            msg='idle, waiting at most 5 seconds for spectrum {}'
-            timeout = 5
-        self.log.debug(msg.format(self._task_id))
-        if not self._have_spectrum.wait(timeout):
-            self.log.error('got no spectrum {}'.format(str(self._task_id)))
-        self._task_id = None
-        return self._spectrum
+            self.log.debug('busy, waiting until a spectrum is available')
+            self._busy.acquire()
+            self._busy.release()
+
+        tID = self._task_id[0]
+        if tID not in self._spectra:
+            for i in range(50):
+                time.sleep(0.1)
+                if tID in self._spectra:
+                    break
+            else:
+                raise RuntimeError('Waited 5s for spectrum {} but did not get it'.format(tID))
+        s = self._spectra[tID]
+        del self._spectra[tID]
+        self._task_id.popleft()
+        self.log.info('got spectrum {} (w)'.format(tID))
+        return s
 
 class PiccoloSpectrometers(PiccoloBaseComponent):
     """manage the spectrometers"""
