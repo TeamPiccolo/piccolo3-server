@@ -240,7 +240,7 @@ class PiccoloDataDir(PiccoloBaseComponent):
     def __getitem__(self,r):
         return self._runs[r]
     def __len__(self):
-        return len(self._runss)
+        return len(self._runs)
     def __iter__(self):
         for r in self._runs.keys():
             yield r
