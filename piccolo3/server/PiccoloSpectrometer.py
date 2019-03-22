@@ -418,6 +418,8 @@ class PiccoloSpectrometers(PiccoloBaseComponent):
     def __init__(self,spectrometer_cfg,channels):
         super().__init__()
 
+        self._channels = channels
+        
         self._spectrometers = {}
         # TODO loop over spectrometers
 
@@ -439,6 +441,10 @@ class PiccoloSpectrometers(PiccoloBaseComponent):
         spectrometers.sort()
         return spectrometers
 
+    @piccoloGET
+    def get_channels(self):
+        return self._channels
+    
     # implement methods so object can act as a read-only dictionary
     def keys(self):
         return self.get_spectrometers()

@@ -118,7 +118,7 @@ class PiccoloDataDir(PiccoloBaseComponent):
         """register a new run"""
         if run not in self._runs:
             self._runs[run] = PiccoloRunDir(self,run)
-            self.runs_site.add_resource([run],self._runs[run].coapResources)
+            self.coapResources.add_resource(['runs',run],self._runs[run].coapResources)
         return self._runs[run]
     
     def _check_datadir(self):
@@ -180,7 +180,7 @@ class PiccoloDataDir(PiccoloBaseComponent):
                 raise Warning("device {} is already unmounted".format(self.device))
         return msg
 
-    @piccoloPUT(has_subs=True,path="runs")
+    @piccoloPUT(path="all_runs")
     def get_runs(self,alpha=False,reverse=False,nitems=None,page=0):
         """get list of runs
         :param alpha: set to True to sort names alphanumerically, otherwise sort by time stamp

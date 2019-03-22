@@ -1,3 +1,7 @@
+2019-03-22 Magnus Hagdorn
+ * piccolo3/server/PiccoloDataDir.py: handle runs
+ * piccolo3/server/PiccoloSpectrometer.py: expose channels
+
 2019-03-21 Magnus Hagdorn
  * setup.py: require janus
  * piccolo3/server/Piccolo.py: use janus to provide sync/async queue
