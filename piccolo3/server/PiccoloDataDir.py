@@ -180,6 +180,10 @@ class PiccoloDataDir(PiccoloBaseComponent):
                 raise Warning("device {} is already unmounted".format(self.device))
         return msg
 
+    @piccoloGET
+    def get_datadir(self):
+        return self.datadir
+
     @piccoloPUT(path="all_runs")
     def get_runs(self,alpha=False,reverse=False,nitems=None,page=0):
         """get list of runs

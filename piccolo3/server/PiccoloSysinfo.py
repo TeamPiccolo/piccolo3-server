@@ -23,6 +23,7 @@
 __all__ = ['PiccoloSysinfo']
 
 from .PiccoloComponent import PiccoloBaseComponent, piccoloGET, piccoloPUT
+from . import __version__
 import psutil
 import socket
 from datetime import datetime
@@ -50,6 +51,10 @@ class PiccoloSysinfo(PiccoloBaseComponent):
     def get_clock(self):
         """get the current date and time"""
         return datetime.now(tz=utc).isoformat()
+    @piccoloGET
+    def get_version(self):
+        """get the server version"""
+        return __version__
     @piccoloPUT
     def set_clock(self,clock):
         """set the current date and time

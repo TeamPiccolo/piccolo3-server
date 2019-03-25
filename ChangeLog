@@ -1,3 +1,7 @@
+2019-03-25 Magnus Hagdorn
+ * piccolo3/server/PiccoloDataDir.py: report data directory
+ * piccolo3/server/PiccoloSysinfo.py: report server version
+
 2019-03-22 Magnus Hagdorn
  * piccolo3/server/PiccoloDataDir.py: handle runs
  * piccolo3/server/PiccoloSpectrometer.py: expose channels
