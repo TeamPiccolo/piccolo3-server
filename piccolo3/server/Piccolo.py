@@ -124,9 +124,11 @@ class PiccoloControlWorker(PiccoloWorkerThread):
         elif task[0] == 'record':
             self.results.put('ok')
             self.record_sequence(*task[1])
+            self.update_status('idle')
         elif task[0] == 'dark':
             self.results.put('ok')
             self.record_dark(task[1])
+            self.update_status('idle')
 
     def record(self,channel,dark=False):
         self.log.debug('recording {} dark={}'.format(channel,dark))
@@ -240,6 +242,7 @@ class PiccoloControl(PiccoloBaseComponent):
 
         self._current_sequence = -1
         self._status = ''
+        self._statusChanged = None
 
         # start the info updater thread        
         self._uiTask = loop.create_task(self._update_info())
@@ -271,6 +274,8 @@ class PiccoloControl(PiccoloBaseComponent):
                 self._current_sequence = t
             elif s == 'status':
                 self._status = t
+                if self._statusChanged is not None:
+                    self._statusChanged()
             else:
                 self.log.warning('unknown spec {}={}'.format(s,t))
 
@@ -326,6 +331,9 @@ class PiccoloControl(PiccoloBaseComponent):
             return self._status
         else:
             return 'idle'
+    @piccoloChanged
+    def callback_status(self,cb):
+        self._statusChanged = cb
     
 
     
