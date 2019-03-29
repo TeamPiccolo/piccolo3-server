@@ -188,7 +188,8 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                 # If spectrometer is None, thenm simulate a spectrometer, for
                 # testing purposes.
                 time.sleep(self.get_currentIntegrationTime(channel)/1000.)
-                pixels = [1]*100
+                pixels = list(range(100))
+                spectrum['SaturationLevel'] = 150
             else:
                 raise NotImplementedError
 

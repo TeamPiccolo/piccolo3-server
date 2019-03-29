@@ -38,7 +38,7 @@ class PiccoloRunDir(PiccoloNamedComponent):
         self.datadir = datadir
         self._pattern = 'b*_s*.pico'
         self._current_batch = -1
-        for s in self.get_spectra():
+        for s in self.get_spectra_list():
             try:
                 b = int(s.split('_')[0][1:])
             except:
@@ -46,9 +46,19 @@ class PiccoloRunDir(PiccoloNamedComponent):
             if b> self._current_batch:
                 self._current_batch = b
 
-    def get_spectra(self):
+    def full_path(self,name):
+        """construct full path given name"""
+        return os.path.join(self.datadir.join(self.name),name)
+                
+    @piccoloPUT(path="spectra")
+    def get_spectra(self,sname):
+        data = open(self.full_path(sname),'r').read()
+        return data
+                
+    @piccoloGET
+    def get_spectra_list(self):
         spectra = []
-        for s in glob.glob(os.path.join(self.datadir.join(self.name),self._pattern)):
+        for s in glob.glob(self.full_path(self._pattern)):
             spectra.append(os.path.basename(s))
         spectra.sort()
         return spectra
