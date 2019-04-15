@@ -24,6 +24,12 @@ import aiocoap
 import logging
 import os, sys
 
+try:
+    import piccolo3.server.PiccoloHardware
+    piccoloStatusLED = piccolo3.server.PiccoloHardware.piccoloStatusLED
+except:
+    piccoloStatusLED = None
+
 def piccolo_server(serverCfg):
 
     log = logging.getLogger("piccolo.server")
@@ -72,6 +78,12 @@ def piccolo_server(serverCfg):
                                                        bind=serverCfg.bind,
                                                        loggername='piccolo.coapserver'))
 
+
+    if piccoloStatusLED is not None:
+        piccoloStatusLED.blink()
+    else:
+        log.warning('no hardware support')
+    
     asyncio.get_event_loop().run_forever()
 
 

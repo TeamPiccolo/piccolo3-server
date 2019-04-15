@@ -26,6 +26,12 @@ from .PiccoloComponent import PiccoloBaseComponent, PiccoloNamedComponent, picco
 import threading
 import time
 
+try:
+    from .PiccoloHardware import piccoloShutters
+    HAVE_SHUTTERS = True
+except:
+    HAVE_SHUTTERS = False
+
 def shutter(shutter,milliseconds):
     """worker function used to open the shutter for the set period
 
@@ -155,16 +161,22 @@ class PiccoloShutters(PiccoloBaseComponent):
             if parsed:
                 shutter_num = c.split('_')
                 try:
-                    shutter_num = int(shutter_num[1])
+                    shutter_num = int(shutter_num[1])-1
                 except:
                     parsed = False
+            if shutter_num <0 or shutter_num > 2:
+                self.log.error('shutter number out of range [0,2]')
+                parsed = False
             if not parsed:
-                log.error('cannot parse shutter %s'%c)
+                self.log.error('cannot parse shutter %s'%c)
                 ok = False
                 continue
 
-            #TODO: use real shutters
-            shutter = None
+            if HAVE_SHUTTERS:
+                shutter = piccoloShutters[shutter_num]
+            else:
+                self.log.warning('no shutter hardware, using dummy shutter')
+                shutter = None
             
             d = shutter_cfg[c]['direction']
             self.shutters[d] = PiccoloShutter(d, shutter=shutter,
