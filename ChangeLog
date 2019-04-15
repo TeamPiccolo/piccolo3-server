@@ -1,4 +1,9 @@
 2019-04-15 Magnus Hagdorn
+ * piccolo3/server/PiccoloConfig.py: move calibration section to spectrometer
+   section
+ * piccolo3/server/PiccoloSpectrometer.py: handle calibration coefficients
+
+2019-04-15 Magnus Hagdorn
  * piccolo3/server/PiccoloSpectrometer.py: use seabreeze module to talk to
    actual spectrometers
  * setup.py: require seabreeze module

@@ -44,10 +44,8 @@ defaultCfgStr = """
     fan = boolean(default=True)
     min_integration_time = float(default=1000.) # minimum integration time in ms
     max_integration_time = float(default=65535000.) # maximum integration time in ms
-
-[calibrations]
-  [[__many__]]
-     [[[__many__]]]
+    [[[calibration]]]
+      [[[[__many__]]]]
         wavelengthCalibrationCoefficientsPiccolo = float_list()
 
 [output]
@@ -93,15 +91,6 @@ class PiccoloConfig:
     @property
     def cfg(self):
         return self._cfg
-
-    def getCalibration(self,spectrometer):
-        calibration = {}
-        for c in self.cfg['channels']:
-            if spectrometer in self.cfg['calibrations'] and c in self.cfg['calibrations'][spectrometer]:
-                calibration[c] = self.cfg['calibrations'][spectrometer][c]['wavelengthCalibrationCoefficientsPiccolo']
-            else:
-                calibration[c] = None
-        return calibration
                 
 if __name__ == '__main__':
     import sys

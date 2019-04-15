@@ -42,7 +42,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
     tasks in the background and holds on to the results until they are
     picked up."""
 
-    def __init__(self, name, channels, busy, tasks, results,info,daemon=True):
+    def __init__(self, name, channels, calibration, busy, tasks, results,info,daemon=True):
         """Initialize the worker thread.
 
         Note: calling __init__ does not start the thread, a subsequent call to
@@ -67,6 +67,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         self._currentIntegrationTime = {}
         self._auto = {}
         self._channels = channels
+        self._calibration = calibration
         for c in self.channels:
             self._currentIntegrationTime[c] = None
             self._auto[c] = None
@@ -235,6 +236,8 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                 
             spectrum.update(self.meta)
             spectrum['IntegrationTime'] = self.get_currentIntegrationTime(channel)
+            if channel in self._calibration:
+                spectrum['WavelengthCalibrationCoefficientsPiccolo'] = self._calibration[channel]
             spectrum.pixels = pixels
 
             self.info.put(('spectrum',(task_id,spectrum)))
@@ -247,7 +250,7 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
 
     NAME = 'spectrometer'
     
-    def __init__(self,name, channels):
+    def __init__(self,name, channels,calibration):
         """Initialize a Piccolo Spectrometer object for Piccolo Server.
 
         The spectromter parameter must be the Spectrometer object from the
@@ -295,6 +298,7 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         # start the spectrometer worker thread
         self._spectrometer = PiccoloSpectrometerWorker(name,
                                                        channels,
+                                                       calibration,
                                                        self._busy,
                                                        self._tQ, self._rQ,
                                                        self._iQ.sync_q)
@@ -468,7 +472,12 @@ class PiccoloSpectrometers(PiccoloBaseComponent):
         if len(self._spectrometers) == 0:
             for sn in spectrometer_cfg:
                 sname = 'S_'+sn
-                self.spectrometers[sname] = PiccoloSpectrometer(sn,channels)
+                calibration = {}
+                if 'calibration' in spectrometer_cfg[sn]:
+                    for c in spectrometer_cfg[sn]['calibration']:
+                        if 'wavelengthCalibrationCoefficientsPiccolo' in spectrometer_cfg[sn]['calibration'][c]:
+                            calibration[c] = spectrometer_cfg[sn]['calibration'][c]['wavelengthCalibrationCoefficientsPiccolo']
+                self.spectrometers[sname] = PiccoloSpectrometer(sn,channels,calibration)
 
         for s in self.spectrometers:
             self.coapResources.add_resource([s],self.spectrometers[s].coapResources)
@@ -509,7 +518,7 @@ if __name__ == '__main__':
 
     if True:
         async def test():
-            spec = PiccoloSpectrometer('QEP00981',['up','down'])
+            spec = PiccoloSpectrometer('QEP00981',['up','down'],{})
         
             spec.set_current_time('up',2000)
             spec.start_acquisition('up')
