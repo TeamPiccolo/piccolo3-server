@@ -33,6 +33,7 @@ setup(
         'lockfile',
         'LinkHeader',
         'janus',
+        'seabreeze',
     ],
     entry_points={
         'console_scripts': [

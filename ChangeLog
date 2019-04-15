@@ -1,4 +1,9 @@
 2019-04-15 Magnus Hagdorn
+ * piccolo3/server/PiccoloSpectrometer.py: use seabreeze module to talk to
+   actual spectrometers
+ * setup.py: require seabreeze module
+
+2019-04-15 Magnus Hagdorn
  * piccolo3/pserver.py: blink status LED
  * piccolo3/server/PiccoloShutter.py: use real shutters if available
  * piccolo3/server/PiccoloHardware.py: add module to handle status LED and
