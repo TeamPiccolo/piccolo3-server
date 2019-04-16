@@ -254,10 +254,13 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
             self.log.info("start autointegration: channel {}, target {}%, current integration time {}".format(channel,target, self.get_currentIntegrationTime(channel)))
 
             delta = 100.
+            target_intensity = target/100.*self.meta['SaturationLevel']
             for i in range(num_attempts):
                 self.log.info('autointegration attempt %d/%d'%(i,num_attempts))
                 times = []
                 max_pixels = []
+                success = False
+                auto_time = None
                 for integration_time in numpy.logspace(numpy.log10(self.minIntegrationTime),numpy.log10(self.maxIntegrationTime),20):
                     self._spec.integration_time_micros(integration_time * 1000.)
                     pixels = self._spec.intensities()
@@ -270,32 +273,26 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                         times.append(integration_time)
                         max_pixels.append(max_pixel)
 
-                if len(times)>0:
-                    coeff = numpy.polyfit(times,max_pixels,1)
-                    self.log.debug('found line {}*t+{}'.format(coeff[0],coeff[1]))
-                else:
-                    self.log.warning('could not fit line')
-                    continue
+                    auto_fit = self._fit_autointegration(times,max_pixels,target_intensity)
+                    if auto_fit is None:
+                        continue
 
-                target_intensity = target/100.*self.meta['SaturationLevel']
-                
-                auto_time = (target_intensity-coeff[1])/coeff[0]
-                auto_time = max(auto_time,self.minIntegrationTime)
-                auto_time = min(auto_time,self.maxIntegrationTime)
+                    auto_time, max_pixel, percentage = auto_fit
 
-                self._spec.integration_time_micros(auto_time * 1000.)
-                pixels = self._spec.intensities()
-                pixels = self._spec.intensities()
-                max_pixel = max(pixels)
+                    if abs(percentage)<target_tolerance or abs(auto_time-self.maxIntegrationTime) < 1e-6:
+                        # success
+                        self.set_auto(channel,'s')
+                        self.set_currentIntegrationTime(channel,auto_time,reset_auto = False)
+                        success = True
+                        break
+                        
+                    if max_pixel < 0.9*self.meta['SaturationLevel']:
+                        # never mind, use results for fitting line
+                        times.append(auto_time)
+                        max_pixels.append(max_pixel)
 
-                percentage = abs(max_pixel-target_intensity)/target_intensity*100.
-                self.log.info('found time: t={}, max={}, percentage={}'.format(
-                    auto_time, max_pixel,percentage))
-                if abs(percentage)<target_tolerance or abs(auto_time-self.maxIntegrationTime) < 1e-6:
-                    self.set_currentIntegrationTime(channel,auto_time,reset_auto=False)
-                    self.set_auto(channel,'y')
+                if success:
                     break
-                    
             else:
                 self.log.error('failed to autointegrate')
                 self.set_auto(channel,'f')
@@ -305,7 +302,30 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         else:
             result = 'unkown task: {}'.format(task)
             self.results.put(result)
-                
+
+
+    def _fit_autointegration(self,times,intensities,target_intensity):
+
+        if len(times) < 2:
+            return
+        
+        coeff = numpy.polyfit(times,intensities,1)
+        self.log.debug('found line {}*t+{}'.format(coeff[0],coeff[1]))
+        auto_time = (target_intensity-coeff[1])/coeff[0]
+
+        auto_time = max(auto_time,self.minIntegrationTime)
+        auto_time = min(auto_time,self.maxIntegrationTime)
+
+        self._spec.integration_time_micros(auto_time * 1000.)
+        pixels = self._spec.intensities()
+        pixels = self._spec.intensities()
+
+        max_pixel = max(pixels)
+        percentage = abs(max_pixel-target_intensity)/target_intensity*100.
+        self.log.info('test integration time: t={}, max={}, percentage={}'.format(
+            auto_time, max_pixel,percentage))
+        return (auto_time, max_pixel, percentage)
+            
 class PiccoloSpectrometer(PiccoloNamedComponent):
     """frontend class used to communicate with spectrometer"""
 
