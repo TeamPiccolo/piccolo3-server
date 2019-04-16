@@ -129,7 +129,31 @@ class PiccoloControlWorker(PiccoloWorkerThread):
             self.results.put('ok')
             self.record_dark(task[1])
             self.update_status('idle')
+        elif task[0] == 'auto':
+            self.results.put('ok')
+            self.autointegrate(task[1])
+            self.update_status('idle')
 
+    def autointegrate(self,target):
+        self.log.debug('autointegrate target={}'.format(target))
+        for shutter in self.shutters:
+            self.shutters[shutter].closeShutter()
+        for shutter in self.shutters:
+            self.update_status('autointegrate channel {}'.format(shutter))
+            self.shutters[shutter].openShutter()
+
+            # start autointegration
+            for spec in self.spectrometers:
+                self.spectrometers[spec].autointegrate(shutter,target=target)
+            time.sleep(0.1)
+
+            # wait for autointegration
+            for spec in self.spectrometers:
+                while self.spectrometers[spec].status() == 'busy':
+                    time.sleep(0.1)
+                    
+            self.shutters[shutter].closeShutter()
+                    
     def record(self,channel,dark=False):
         self.log.debug('recording {} dark={}'.format(channel,dark))
         status = channel + ' '
@@ -244,6 +268,8 @@ class PiccoloControl(PiccoloBaseComponent):
         self._status = ''
         self._statusChanged = None
 
+        self._target = 80.
+        
         # start the info updater thread        
         self._uiTask = loop.create_task(self._update_info())
         
@@ -294,10 +320,16 @@ class PiccoloControl(PiccoloBaseComponent):
         result = self._rQ.get()
         if result != 'ok':
             raise RuntimeError(result)                      
-        
+
+    @piccoloGET
     def auto(self):
         """determine best integration time"""
-        pass
+        if self._busy.locked():
+            raise Warning('spectrometer is busy')
+        self._tQ.put(('auto',self._target))
+        result = self._rQ.get()
+        if result != 'ok':
+            raise RuntimeError(result)
 
     @piccoloPUT
     def record_dark(self,run):

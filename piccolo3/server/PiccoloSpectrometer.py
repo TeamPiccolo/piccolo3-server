@@ -224,7 +224,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
             # record data
 
             if self._spec is None:
-                # If spectrometer is None, thenm simulate a spectrometer, for
+                # If spectrometer is None, then simulate a spectrometer, for
                 # testing purposes.
                 time.sleep(self.get_currentIntegrationTime(channel)/1000.)
                 pixels = list(range(100))
@@ -241,6 +241,67 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
             spectrum.pixels = pixels
 
             self.info.put(('spectrum',(task_id,spectrum)))
+        elif task[0] == 'autointegration':
+            channel = task[1]
+            if channel not in self.channels:
+                self.result.put('channel {} is unknown'.format(channel))
+                return
+            target = task[2]
+            target_tolerance = 10.
+            num_attempts = 5
+            self.results.put('ok')
+
+            self.log.info("start autointegration: channel {}, target {}%, current integration time {}".format(channel,target, self.get_currentIntegrationTime(channel)))
+
+            delta = 100.
+            for i in range(num_attempts):
+                self.log.info('autointegration attempt %d/%d'%(i,num_attempts))
+                times = []
+                max_pixels = []
+                for integration_time in numpy.logspace(numpy.log10(self.minIntegrationTime),numpy.log10(self.maxIntegrationTime),20):
+                    self._spec.integration_time_micros(integration_time * 1000.)
+                    pixels = self._spec.intensities()
+                    pixels = self._spec.intensities()
+                    max_pixel = max(pixels)
+                    self.log.debug('t={},max={}'.format(integration_time, max_pixel))
+                    if max_pixel > 0.9*self.meta['SaturationLevel']:
+                        break
+                    if max_pixel > 20000:
+                        times.append(integration_time)
+                        max_pixels.append(max_pixel)
+
+                if len(times)>0:
+                    coeff = numpy.polyfit(times,max_pixels,1)
+                    self.log.debug('found line {}*t+{}'.format(coeff[0],coeff[1]))
+                else:
+                    self.log.warning('could not fit line')
+                    continue
+
+                target_intensity = target/100.*self.meta['SaturationLevel']
+                
+                auto_time = (target_intensity-coeff[1])/coeff[0]
+                auto_time = max(auto_time,self.minIntegrationTime)
+                auto_time = min(auto_time,self.maxIntegrationTime)
+
+                self._spec.integration_time_micros(auto_time * 1000.)
+                pixels = self._spec.intensities()
+                pixels = self._spec.intensities()
+                max_pixel = max(pixels)
+
+                percentage = abs(max_pixel-target_intensity)/target_intensity*100.
+                self.log.info('found time: t={}, max={}, percentage={}'.format(
+                    auto_time, max_pixel,percentage))
+                if abs(percentage)<target_tolerance or abs(auto_time-self.maxIntegrationTime) < 1e-6:
+                    self.set_currentIntegrationTime(channel,auto_time,reset_auto=False)
+                    self.set_auto(channel,'y')
+                    break
+                    
+            else:
+                self.log.error('failed to autointegrate')
+                self.set_auto(channel,'f')
+            
+            self._spec.integration_time_micros(self.minIntegrationTime* 1000.)
+            self.log.info("finished autointegration: channel {}, current integration time {}".format(channel,self.get_currentIntegrationTime(channel)))
         else:
             result = 'unkown task: {}'.format(task)
             self.results.put(result)
@@ -413,6 +474,17 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         else:
             return 'idle'
 
+    def autointegrate(self,channel,target=80.):
+        """start autointegration"""
+        if self._busy.locked():
+            raise Warning('spectrometer is busy')
+        if target<0 or target > 100:
+            raise RuntimeError('target out of range 0<%s<100'%target)
+        self._tQ.put(('autointegration',channel,target))
+        result = self._rQ.get()
+        if result != 'ok':
+            raise RuntimeError(result)
+
     def start_acquisition(self,channel,dark=False):
         """start acquiring a spectrum"""
         if self._busy.locked():
@@ -515,8 +587,26 @@ if __name__ == '__main__':
     from pprint import pprint
     piccoloLogging(debug=True)
 
-
+    
     if True:
+        async def test():
+            spec = PiccoloSpectrometer('QEP00981',['up','down'],{})
+            print ('start',spec.get_current_time('up'))
+            spec.set_max_time(500)
+            spec.autointegrate('up')
+
+            while spec.status() == 'busy':
+                await asyncio.sleep(1)
+                print (spec.status())
+            print ('done',spec.get_current_time('up'))
+            spec.stop()
+
+        from .PiccoloHardware import piccoloShutters
+        s = piccoloShutters[0]
+        s.open()
+        asyncio.run(test())
+        s.close()
+    elif False:
         async def test():
             spec = PiccoloSpectrometer('QEP00981',['up','down'],{})
         
@@ -524,10 +614,16 @@ if __name__ == '__main__':
             spec.start_acquisition('up')
             time.sleep(0.1)
             await asyncio.sleep(5)
-            pprint(spec.get_spectrum().as_dict())
+            s = spec.get_spectrum().as_dict()
+            pprint(s)
+            print ('max',max(s['Pixels']))
             spec.stop()
 
+        from .PiccoloHardware import piccoloShutters
+        s = piccoloShutters[0]
+        s.open()
         asyncio.run(test())
+        s.close()
     else:
         import aiocoap.resource as resource
         import aiocoap
