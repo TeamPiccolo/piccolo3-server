@@ -1,4 +1,7 @@
 2019-04-16 Magnus Hagdorn
+ * piccolo3/server/PiccoloSpectrometer.py: improve autointegration
+
+2019-04-16 Magnus Hagdorn
  * piccolo3/server/Piccolo.py: hook up autointegration
  * piccolo3/server/PiccoloSpectrometer.py: first go at implementing
    autointegration
