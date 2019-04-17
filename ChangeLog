@@ -1,3 +1,7 @@
+2019-04-17 Magnus Hagdorn
+ * piccolo3/server/Piccolo.py: autointegrate when recording sequences if
+   requested
+
 2019-04-16 Magnus Hagdorn
  * piccolo3/server/PiccoloSpectrometer.py: improve autointegration
 

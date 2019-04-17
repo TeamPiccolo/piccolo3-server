@@ -139,7 +139,7 @@ class PiccoloControlWorker(PiccoloWorkerThread):
         for shutter in self.shutters:
             self.shutters[shutter].closeShutter()
         for shutter in self.shutters:
-            self.update_status('autointegrate channel {}'.format(shutter))
+            self.update_status('autointegrate {}'.format(shutter))
             self.shutters[shutter].openShutter()
 
             # start autointegration
@@ -207,11 +207,28 @@ class PiccoloControlWorker(PiccoloWorkerThread):
 
         self.update_sequence_number(-1)
 
-        # record dark
-        self.record_dark(run_name,batch=batch)
-        task = self.get_task(block=False)
+        if auto==0:
+            self.autointegrate(80.)
+            task = self.get_task(block=False)
+            if task in ['abort','shutdown']:
+                return
+
+        if auto<1:
+            # record dark
+            self.record_dark(run_name,batch=batch)
             
         for sequence in range(nsequence):
+            if auto>0 and sequence%auto == 0:
+                self.autointegrate(80.)
+                task = self.get_task(block=False)
+                if task in ['abort','shutdown']:
+                    return
+                self.record_dark(run_name,batch=batch)
+                task = self.get_task(block=False)
+                if task in ['abort','shutdown']:
+                    return
+            
+            task = self.get_task(block=False)
             if task in ['abort','shutdown']:
                 return
             self.log.info("recording sequence {} of run {} batch {}".format(sequence,run.name,batch))
