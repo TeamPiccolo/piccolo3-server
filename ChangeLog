@@ -1,3 +1,9 @@
+2019-04-19 Magnus Hagdorn
+ * piccolo3/server/Piccolo.py: save correct dark sequence; report when waiting
+ * piccolo3/server/PiccoloSpectrometer.py: add internal methods to handle
+   getting spectra and computing max intensity; use peak detection for finding
+   maximum intensity
+
 2019-04-17 Magnus Hagdorn
  * piccolo3/server/Piccolo.py: autointegrate when recording sequences if
    requested

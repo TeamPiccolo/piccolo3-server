@@ -223,7 +223,7 @@ class PiccoloControlWorker(PiccoloWorkerThread):
                 task = self.get_task(block=False)
                 if task in ['abort','shutdown']:
                     return
-                self.record_dark(run_name,batch=batch)
+                self.record_dark(run_name,batch=batch,sequence=sequence)
                 task = self.get_task(block=False)
                 if task in ['abort','shutdown']:
                     return
@@ -245,6 +245,7 @@ class PiccoloControlWorker(PiccoloWorkerThread):
             task = self.get_task(block=False)
             if task in ['abort','shutdown']:
                 return
+            self.update_status('waiting')
             time.sleep(delay)
 
         if nsequence>1:

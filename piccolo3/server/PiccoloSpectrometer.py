@@ -34,6 +34,7 @@ import uuid
 import time
 from collections import deque
 import numpy
+from scipy.signal import find_peaks
 
 import seabreeze.spectrometers as sb
 
@@ -88,7 +89,11 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         for c in self.channels:
             self.set_currentIntegrationTime(c,self.minIntegrationTime)
             self.set_auto(c,'n')
-        
+
+    def stop(self):
+        if self._spec is not None:
+            self._spec.close()
+            
     @property
     def channels(self):
         return self._channels
@@ -229,9 +234,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                 time.sleep(self.get_currentIntegrationTime(channel)/1000.)
                 pixels = list(range(100))
             else:
-                self._spec.integration_time_micros(self.get_currentIntegrationTime(channel)*1000.)
-                for i in range(2):
-                    pixels = self._spec.intensities()
+                pixels = self._get_spectrum(self.get_currentIntegrationTime(channel))
                 spectrum['Temperature'] = self._spec.tec_get_temperature_C()
                 
             spectrum.update(self.meta)
@@ -262,11 +265,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                 success = False
                 auto_time = None
                 for integration_time in numpy.logspace(numpy.log10(self.minIntegrationTime),numpy.log10(self.maxIntegrationTime),20):
-                    self._spec.integration_time_micros(integration_time * 1000.)
-                    pixels = self._spec.intensities()
-                    pixels = self._spec.intensities()
-                    max_pixel = max(pixels)
-                    self.log.debug('t={},max={}'.format(integration_time, max_pixel))
+                    max_pixel = self._get_max(integration_time)
                     if max_pixel > 0.9*self.meta['SaturationLevel']:
                         break
                     if max_pixel > 20000:
@@ -297,12 +296,34 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                 self.log.error('failed to autointegrate')
                 self.set_auto(channel,'f')
             
-            self._spec.integration_time_micros(self.minIntegrationTime* 1000.)
             self.log.info("finished autointegration: channel {}, current integration time {}".format(channel,self.get_currentIntegrationTime(channel)))
         else:
             result = 'unkown task: {}'.format(task)
             self.results.put(result)
-
+            
+    def _get_spectrum(self,integration_time):
+        integration_time = max(integration_time,self.minIntegrationTime)
+        integration_time = min(integration_time,self.maxIntegrationTime)
+        self._spec.integration_time_micros(integration_time * 1000.)
+        time.sleep(0.1)
+        pixels = self._spec.intensities()
+        pixels = self._spec.intensities()
+        self._spec.integration_time_micros(self.minIntegrationTime* 1000.)
+        self.log.debug('recorded spectrum t={}, max intensity={}'.format(integration_time,max(pixels)))
+        return pixels
+                       
+            
+    def _get_max(self,integration_time):
+        pixels = self._get_spectrum(integration_time)
+        if True:
+            peaks, properties = find_peaks(pixels,width=5)
+            max_pixel = max(properties['prominences'])
+        else:
+            max_pixel = max(pixels)
+        self.log.debug('max intensity at t={},max={}'.format(integration_time, max_pixel))
+        if False:
+            self.log.debug(properties['prominences'])
+        return max_pixel    
 
     def _fit_autointegration(self,times,intensities,target_intensity):
 
@@ -316,11 +337,8 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         auto_time = max(auto_time,self.minIntegrationTime)
         auto_time = min(auto_time,self.maxIntegrationTime)
 
-        self._spec.integration_time_micros(auto_time * 1000.)
-        pixels = self._spec.intensities()
-        pixels = self._spec.intensities()
+        max_pixel = self._get_max(auto_time)
 
-        max_pixel = max(pixels)
         percentage = abs(max_pixel-target_intensity)/target_intensity*100.
         self.log.info('test integration time: t={}, max={}, percentage={}'.format(
             auto_time, max_pixel,percentage))
@@ -612,7 +630,7 @@ if __name__ == '__main__':
         async def test():
             spec = PiccoloSpectrometer('QEP00981',['up','down'],{})
             print ('start',spec.get_current_time('up'))
-            spec.set_max_time(500)
+            spec.set_max_time(5000)
             spec.autointegrate('up')
 
             while spec.status() == 'busy':
@@ -620,12 +638,14 @@ if __name__ == '__main__':
                 print (spec.status())
             print ('done',spec.get_current_time('up'))
             spec.stop()
+            time.sleep(1)
 
         from .PiccoloHardware import piccoloShutters
-        s = piccoloShutters[0]
-        s.open()
-        asyncio.run(test())
-        s.close()
+        for i in range(2):
+            s = piccoloShutters[i]
+            s.open()
+            asyncio.run(test())
+            s.close()
     elif False:
         async def test():
             spec = PiccoloSpectrometer('QEP00981',['up','down'],{})
