@@ -1,4 +1,9 @@
 2019-04-19 Magnus Hagdorn
+ * setup.py: new dependency
+ * piccolo3/server/PiccoloScheduler.py: imported scheduler from
+   piccolo2-server
+
+2019-04-19 Magnus Hagdorn
  * piccolo3/server/Piccolo.py: save correct dark sequence; report when waiting
  * piccolo3/server/PiccoloSpectrometer.py: add internal methods to handle
    getting spectra and computing max intensity; use peak detection for finding
