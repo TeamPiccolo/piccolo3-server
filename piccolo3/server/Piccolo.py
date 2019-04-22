@@ -69,7 +69,7 @@ class PiccoloControlWorker(PiccoloWorkerThread):
 
         super().__init__('piccolo_worker',busy, tasks, results,info,daemon=daemon)
 
-        self.pasued = paused
+        self.paused = paused
         self.datadir = datadir
         self.shutters = shutters
         self.spectrometers = spectrometers
@@ -106,6 +106,7 @@ class PiccoloControlWorker(PiccoloWorkerThread):
                 # pause acquisition
                 self.log.info('pause acquisition')
                 self.paused.acquire()
+                self.update_status('paused')
                 # wait for a new command
                 while True:
                     cmd = self.get_task()
@@ -375,7 +376,7 @@ class PiccoloControl(PiccoloBaseComponent):
     def auto(self):
         """determine best integration time"""
         if self._busy.locked():
-            raise Warning('spectrometer is busy')
+            raise Warning('piccolo system is busy')
         self._tQ.sync_q.put(('auto',self._target))
         result = self_rQ.sync_q.get()
         if result != 'ok':
@@ -388,8 +389,8 @@ class PiccoloControl(PiccoloBaseComponent):
         :param run: name of the current run
         """
         if self._busy.locked():
-            raise Warning('spectrometer is busy')
-        self._tQ.sync_q.sync_q.put(('dark',run))
+            raise Warning('piccolo system is busy')
+        self._tQ.sync_q.put(('dark',run))
         result = self._rQ.sync_q.get()
         if result != 'ok':
             raise RuntimeError(result)             
@@ -398,9 +399,12 @@ class PiccoloControl(PiccoloBaseComponent):
         """abort current batch"""
         pass
 
+    @piccoloGET
     def pause(self):
         """pause current batch"""
-        pass
+        if not self._busy.locked():
+            raise Warning('piccolo system is not busy')
+        self._tQ.sync_q.put('pause')
 
     @piccoloGET
     def get_current_sequence(self):

@@ -1,4 +1,7 @@
 2019-04-22 Magnus Hagdorn
+ * piccolo3/server/Piccolo.py: fix bug; implement pause functionality
+
+2019-04-22 Magnus Hagdorn
  * piccolo3/server/Piccolo.py: add scheduler to schedule sequence runs
  * piccolo3/server/PiccoloScheduler.py: cosmetic changes
  * setup.py: correct dependency
