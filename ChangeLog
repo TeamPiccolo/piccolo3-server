@@ -1,3 +1,8 @@
+2019-04-22 Magnus Hagdorn
+ * piccolo3/server/Piccolo.py: add scheduler to schedule sequence runs
+ * piccolo3/server/PiccoloScheduler.py: cosmetic changes
+ * setup.py: correct dependency
+
 2019-04-19 Magnus Hagdorn
  * setup.py: new dependency
  * piccolo3/server/PiccoloScheduler.py: imported scheduler from

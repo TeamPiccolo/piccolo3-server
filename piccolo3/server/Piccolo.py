@@ -30,6 +30,7 @@ from .PiccoloWorkerThreads import PiccoloThread,PiccoloWorkerThread
 from .PiccoloDataDir import PiccoloDataDir
 from .PiccoloShutter import PiccoloShutters
 from .PiccoloSpectrometer import PiccoloSpectrometers
+from .PiccoloScheduler import PiccoloScheduler
 
 from queue import Queue
 import threading
@@ -272,10 +273,9 @@ class PiccoloControl(PiccoloBaseComponent):
         # The lock prevents two threads using the spectrometer at the same time.
         self._busy = threading.Lock()
         self._paused = threading.Lock()
-        self._tQ = Queue() # Task queue.
-        self._rQ = Queue() # Results queue.
-
         loop = asyncio.get_event_loop()
+        self._tQ = janus.Queue(loop=loop) # Task queue.
+        self._rQ = janus.Queue(loop=loop) # Results queue.
         self._iQ = janus.Queue(loop=loop) # info queue
         
         self._datadir = datadir
@@ -287,19 +287,42 @@ class PiccoloControl(PiccoloBaseComponent):
         self._statusChanged = None
 
         self._target = 80.
+
+        # the scheduler for running tasks
+        self._scheduler = PiccoloScheduler()
         
         # start the info updater thread        
         self._uiTask = loop.create_task(self._update_info())
+        self._schedulerTask = loop.create_task(self._check_scheduler())
         
         self._piccolo = PiccoloControlWorker(self._datadir, self._shutters, self._spectrometers,
-                                             self._busy, self._paused, self._tQ, self._rQ, self._iQ.sync_q)
+                                             self._busy, self._paused,
+                                             self._tQ.sync_q, self._rQ.sync_q, self._iQ.sync_q)
         self._piccolo.start()
 
     def stop(self):
         # send poison pill to worker
         self.log.info('shutting down')
-        self._tQ.put(None)
+        self._tQ.sync_q.put(None)
 
+    async def _check_scheduler(self):
+        """check if a scheduled task should be run"""
+
+        while True:
+            for job in self._scheduler.runable_jobs:
+                task = job.run()
+                if not task:
+                    continue
+
+                if self._busy.locked():
+                    self.log.warning('piccolo is busy, ignoring task {}'.format(job.jid))
+                    continue
+                await self._tQ.async_q.put(task)
+                result = await self._rQ.async_q.get()
+                if result != 'ok':
+                    self.log.error('failed to run task {}: {}'.format(job.jid, result))
+            await asyncio.sleep(1)
+            
     async def _update_info(self):
         """thread that checks if info needs to be updated"""
 
@@ -324,28 +347,37 @@ class PiccoloControl(PiccoloBaseComponent):
                 self.log.warning('unknown spec {}={}'.format(s,t))
 
     @piccoloPUT
-    def record_sequence(self,run,nsequence=1,auto=-1,delay=0.):
+    def record_sequence(self,run,nsequence=1,auto=-1,delay=0., at_time=None,interval=None,end_time=None):
         """start recording a batch
 
         :param run: name of the current run
         :param nsequence: the number of squences to record
         :param auto: can be -1 for never; 0 once at the beginning; otherwise every nth measurement
         :param delay: delay in seconds between each sequence
+        :param at_time: the time at which the job should run or None
+        :param interval: repeated scheduled run if interval is not set to None
+        :param end_time: the time after which the job is no longer scheduled
         """
-        if self._busy.locked():
-            raise Warning('spectrometer is busy')
-        self._tQ.put(('record',(run,nsequence,auto,delay)))
-        result = self._rQ.get()
-        if result != 'ok':
-            raise RuntimeError(result)                      
 
+        job = ('record',(run,nsequence,auto,delay))
+
+        if at_time:
+            self._scheduler.add(at_time,job,interval=interval,end_time=end_time)
+        else:        
+            if self._busy.locked():
+                raise Warning('spectrometer is busy')
+            self._tQ.sync_q.put(job)
+            result = self._rQ.sync_q.get()
+            if result != 'ok':
+                raise RuntimeError(result)
+            
     @piccoloGET
     def auto(self):
         """determine best integration time"""
         if self._busy.locked():
             raise Warning('spectrometer is busy')
-        self._tQ.put(('auto',self._target))
-        result = self._rQ.get()
+        self._tQ.sync_q.put(('auto',self._target))
+        result = self_rQ.sync_q.get()
         if result != 'ok':
             raise RuntimeError(result)
 
@@ -357,8 +389,8 @@ class PiccoloControl(PiccoloBaseComponent):
         """
         if self._busy.locked():
             raise Warning('spectrometer is busy')
-        self._tQ.put(('dark',run))
-        result = self._rQ.get()
+        self._tQ.sync_q.sync_q.put(('dark',run))
+        result = self._rQ.sync_q.get()
         if result != 'ok':
             raise RuntimeError(result)             
     

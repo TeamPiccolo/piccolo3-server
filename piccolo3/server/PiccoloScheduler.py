@@ -30,7 +30,7 @@ class PiccoloScheduledJob:
 
     ISOFORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"
 
-    def __init__(self,at_time,interval,job,end_time=None):
+    def __init__(self,at_time,job,interval=None,end_time=None):
         """
         :param at_time: the time at which the job should run
         :type at_time: datetime.datetime or isoformat string
@@ -155,12 +155,12 @@ class PiccoloScheduledJob:
         if not self.shouldRun:
             return None
         if self._interval == None:
-            self.log.debug("final run of job {0}".format(self.jid))
+            self.log.info("final run of job {0}".format(self.jid))
             self._has_run = True
         else:
             n = (datetime.datetime.now(tz=pytz.utc)-self._at).total_seconds()//self._interval.total_seconds()+1
             if n>1:
-                self.log.debug("job {0}: fast forwarding {1} times".format(self.jid,n))
+                self.log.info("job {0}: fast forwarding {1} times".format(self.jid,n))
                 dt = datetime.timedelta(seconds=n*self._interval.total_seconds())
             else:
                 dt = self._interval
@@ -238,8 +238,9 @@ class PiccoloScheduler:
         :type end_time: datetime.datetime or None
         """
 
-        job = PiccoloScheduledJob(at_time,interval,job,end_time=end_time)
+        job = PiccoloScheduledJob(at_time,job,interval=interval,end_time=end_time)
 
+        self.log.debug('scheduling job {}'.format(job.jid))
         self._jobs[job.jid] = job
 
         return job

@@ -28,7 +28,7 @@ setup(
         'psutil',
         'aiocoap',
         'pytz',
-        'dateutil',
+        'python-dateutil',
         'configobj',
         'python-daemon',
         'lockfile',
