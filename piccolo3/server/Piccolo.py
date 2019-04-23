@@ -394,10 +394,13 @@ class PiccoloControl(PiccoloBaseComponent):
         result = self._rQ.sync_q.get()
         if result != 'ok':
             raise RuntimeError(result)             
-    
+
+    @piccoloGET
     def abort(self):
         """abort current batch"""
-        pass
+        if not self._busy.locked():
+            raise Warning('piccolo system is not busy')
+        self._tQ.sync_q.put('abort')
 
     @piccoloGET
     def pause(self):
