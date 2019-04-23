@@ -1,4 +1,8 @@
 2019-04-23 Magnus Hagdorn
+ * piccolo3/server/PiccoloDataDir.py: start with newest run directory, fixes
+   issue #10
+
+2019-04-23 Magnus Hagdorn
  * piccolo3/server/Piccolo.py: implement abort functionality
 
 2019-04-22 Magnus Hagdorn

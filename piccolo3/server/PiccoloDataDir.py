@@ -111,8 +111,12 @@ class PiccoloDataDir(PiccoloBaseComponent):
         self._runs = {}
         for r in self.get_runs():
             self.add_run(r)
-            
-        self.set_current_run('spectra')
+
+        if len(self._runs) == 0:
+            self.set_current_run('spectra')
+        else:
+            r = self.get_runs(reverse=True,nitems=1)[0]
+            self.set_current_run(r)
                 
     @property
     def mntpnt(self):
