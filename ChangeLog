@@ -1,4 +1,8 @@
 2019-04-24 Magnus Hagdorn
+ * piccolo3/server/PiccoloSpectrometer.py: use simple max if peak detection
+   fails
+
+2019-04-24 Magnus Hagdorn
  * piccolo3/server/Piccolo.py: pass target saturation as an argument
 
 2019-04-24 Magnus Hagdorn

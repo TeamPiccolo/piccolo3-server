@@ -316,8 +316,11 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
     def _get_max(self,integration_time):
         pixels = self._get_spectrum(integration_time)
         if True:
-            peaks, properties = find_peaks(pixels,width=5)
-            max_pixel = max(properties['prominences'])
+            try:
+                peaks, properties = find_peaks(pixels,width=5)
+                max_pixel = max(properties['prominences'])
+            except:
+                max_pixel = max(pixels)
         else:
             max_pixel = max(pixels)
         self.log.debug('max intensity at t={},max={}'.format(integration_time, max_pixel))
