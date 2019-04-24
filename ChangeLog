@@ -1,4 +1,7 @@
 2019-04-24 Magnus Hagdorn
+ * piccolo3/server/Piccolo.py: pass target saturation as an argument
+
+2019-04-24 Magnus Hagdorn
  * piccolo3/server/Piccolo.py: set current run in main thread; store and set
    numSequences, autointegration, delay and target in controller; make all
    arguments to record_sequence and record_dark methods optional and use

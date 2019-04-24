@@ -194,7 +194,7 @@ class PiccoloControlWorker(PiccoloWorkerThread):
                 spectra.append(s)
         self.spectra.put(spectra)
     
-    def record_sequence(self,run_name,nsequence,auto,delay):
+    def record_sequence(self,run_name,nsequence,auto,delay,target):
         run = self.datadir[run_name]
         batch = run.get_next_batch()
         self.log.info("start recording batch {} of run {} with {} sequences".format(batch,run.name,nsequence))
@@ -202,7 +202,7 @@ class PiccoloControlWorker(PiccoloWorkerThread):
         self.update_sequence_number(-1)
 
         if auto==0:
-            self.autointegrate(80.)
+            self.autointegrate(target)
             task = self.get_task(block=False)
             if task in ['abort','shutdown']:
                 return
@@ -213,7 +213,7 @@ class PiccoloControlWorker(PiccoloWorkerThread):
             
         for sequence in range(nsequence):
             if auto>0 and sequence%auto == 0:
-                self.autointegrate(80.)
+                self.autointegrate(target)
                 task = self.get_task(block=False)
                 if task in ['abort','shutdown']:
                     return
@@ -411,13 +411,14 @@ class PiccoloControl(PiccoloBaseComponent):
 
         
     @piccoloPUT
-    def record_sequence(self,run=None,nsequence=None,auto=None,delay=None, at_time=None,interval=None,end_time=None):
+    def record_sequence(self,run=None,nsequence=None,auto=None,delay=None, target=None,at_time=None,interval=None,end_time=None):
         """start recording a batch
 
         :param run: name of the current run
         :param nsequence: the number of squences to record
         :param auto: can be -1 for never; 0 once at the beginning; otherwise every nth measurement
         :param delay: delay in seconds between each sequence
+        :param target: target saturation percentage for autointegration
         :param at_time: the time at which the job should run or None
         :param interval: repeated scheduled run if interval is not set to None
         :param end_time: the time after which the job is no longer scheduled
@@ -429,13 +430,15 @@ class PiccoloControl(PiccoloBaseComponent):
             self.set_autointegration(auto)
         if delay is not None:
             self.set_delay(delay)
+        if target is not None:
+            self.set_target(target)
         if run is not None:
             try:
                 self._datadir.set_current_run(run)
             except Warning:
                 pass
             
-        job = ('record',(self._datadir.get_current_run(),self.get_numSequences(),self.get_autointegration(),self.get_delay()))
+        job = ('record',(self._datadir.get_current_run(),self.get_numSequences(),self.get_autointegration(),self.get_delay(),self.get_target()))
 
         if at_time:
             self._scheduler.add(at_time,job,interval=interval,end_time=end_time)
@@ -447,12 +450,17 @@ class PiccoloControl(PiccoloBaseComponent):
             if result != 'ok':
                 raise RuntimeError(result)
             
-    @piccoloGET
-    def auto(self):
-        """determine best integration time"""
+    @piccoloPUT
+    def auto(self,target=None):
+        """determine best integration time
+
+        :param target: target saturation percentage for autointegration
+        """
         if self._busy.locked():
             raise Warning('piccolo system is busy')
-        self._tQ.sync_q.put(('auto',self._target))
+        if target is not None:
+            self.set_target(target)
+        self._tQ.sync_q.put(('auto',self.get_target()))
         result = self_rQ.sync_q.get()
         if result != 'ok':
             raise RuntimeError(result)
