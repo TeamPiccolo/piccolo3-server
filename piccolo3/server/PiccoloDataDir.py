@@ -22,7 +22,7 @@
 
 __all__ = ['PiccoloDataDir']
 
-from .PiccoloComponent import PiccoloBaseComponent, PiccoloNamedComponent, piccoloGET, piccoloPUT
+from .PiccoloComponent import PiccoloBaseComponent, PiccoloNamedComponent, piccoloGET, piccoloPUT, piccoloChanged 
 import os, os.path, glob
 import subprocess
 
@@ -108,6 +108,7 @@ class PiccoloDataDir(PiccoloBaseComponent):
         self._check_datadir()
 
         self._current_run = None
+        self._current_runChanged = None
         self._runs = {}
         for r in self.get_runs():
             self.add_run(r)
@@ -228,7 +229,6 @@ class PiccoloDataDir(PiccoloBaseComponent):
     def get_current_run(self):
         """get the current run"""
         return self._current_run
-
     @piccoloPUT
     def set_current_run(self,run):
         """set the current run"""
@@ -240,7 +240,13 @@ class PiccoloDataDir(PiccoloBaseComponent):
             os.makedirs(r)
             self.add_run(run)
         self._current_run = run
+        if self._current_runChanged is not None:
+            self._current_runChanged()
+        self.log.info('set current run to {}'.format(self._current_run))
         return self._current_run
+    @piccoloChanged
+    def callback_current_run(self,cb):
+        self._current_runChanged = cb
     
     def join(self,p):
         """join path to datadir if path is not absolute

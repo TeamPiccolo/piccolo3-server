@@ -184,10 +184,6 @@ class PiccoloControlWorker(PiccoloWorkerThread):
         return spectra
 
     def record_dark(self,run_name,batch=None,sequence=0):
-        try:
-            self.datadir.set_current_run(run_name)
-        except Warning:
-            pass
         run = self.datadir[run_name]
         if batch is None:
             batch = run.get_next_batch()
@@ -199,10 +195,6 @@ class PiccoloControlWorker(PiccoloWorkerThread):
         self.spectra.put(spectra)
     
     def record_sequence(self,run_name,nsequence,auto,delay):
-        try:
-            self.datadir.set_current_run(run_name)
-        except Warning:
-            pass
         run = self.datadir[run_name]
         batch = run.get_next_batch()
         self.log.info("start recording batch {} of run {} with {} sequences".format(batch,run.name,nsequence))
@@ -287,8 +279,16 @@ class PiccoloControl(PiccoloBaseComponent):
         self._status = ''
         self._statusChanged = None
 
+        self._numSequences = 1
+        self._numSequencesChanged = None
+        self._autointegration = -1
+        self._autointegrationChanged = None
+        self._delay = 0.
+        self._delayChanged = None
+        
         self._target = 80.
-
+        self._targetChanged = None
+        
         # the scheduler for running tasks
         self._scheduler = PiccoloScheduler()
         
@@ -347,8 +347,71 @@ class PiccoloControl(PiccoloBaseComponent):
             else:
                 self.log.warning('unknown spec {}={}'.format(s,t))
 
+    @piccoloGET
+    def get_numSequences(self):
+        return self._numSequences
     @piccoloPUT
-    def record_sequence(self,run,nsequence=1,auto=-1,delay=0., at_time=None,interval=None,end_time=None):
+    def set_numSequences(self,n):
+        n = int(n)
+        if n<1:
+            raise ValueError('number of sequences must be greater than 0')
+        if n!=self._numSequences:
+            self._numSequences = n
+            if self._numSequencesChanged is not None:
+                 self._numSequencesChanged()
+    @piccoloChanged
+    def callback_numSequences(self,cb):
+        self._numSequencesChanged = cb
+
+    @piccoloGET
+    def get_autointegration(self):
+        return self._autointegration
+    @piccoloPUT
+    def set_autointegration(self,n):
+        n = max(int(n),-1)
+        if n!=self._autointegration:
+            self._autointegration = n
+            if self._autointegrationChanged:
+                 self._autointegrationChanged()
+    @piccoloChanged
+    def callback_autointegration(self,cb):
+        self._autointegrationChanged = cb
+       
+    @piccoloGET
+    def get_delay(self):
+        return self._delay
+    @piccoloPUT
+    def set_delay(self,d):
+        d = float(d)
+        if d <0:
+            raise ValueError('delay must be >=0')
+        if abs(self._delay-d)>1e-5:
+            self._delay = d
+            if self._delayChanged:
+                 self._delayChanged()
+    @piccoloChanged
+    def callback_delay(self,cb):
+        self._delayChanged = cb
+
+    @piccoloGET
+    def get_target(self):
+        return self._target
+    @piccoloPUT
+    def set_target(self,t):
+        t = float(t)
+        if t <10 or t>90:
+            raise ValueError('target must be >=10 and <=90')
+        if abs(self._target-t)>1e-5:
+            self._target = t
+            if self._targetChanged:
+                 self._targetChanged()
+    @piccoloChanged
+    def callback_target(self,cb):
+        self._targetChanged = cb
+
+        
+    @piccoloPUT
+    def record_sequence(self,run=None,nsequence=None,auto=None,delay=None, at_time=None,interval=None,end_time=None):
         """start recording a batch
 
         :param run: name of the current run
@@ -359,14 +422,26 @@ class PiccoloControl(PiccoloBaseComponent):
         :param interval: repeated scheduled run if interval is not set to None
         :param end_time: the time after which the job is no longer scheduled
         """
-
-        job = ('record',(run,nsequence,auto,delay))
+        
+        if nsequence is not None:
+            self.set_numSequences(nsequence)
+        if auto is not None:
+            self.set_autointegration(auto)
+        if delay is not None:
+            self.set_delay(delay)
+        if run is not None:
+            try:
+                self._datadir.set_current_run(run)
+            except Warning:
+                pass
+            
+        job = ('record',(self._datadir.get_current_run(),self.get_numSequences(),self.get_autointegration(),self.get_delay()))
 
         if at_time:
             self._scheduler.add(at_time,job,interval=interval,end_time=end_time)
         else:        
             if self._busy.locked():
-                raise Warning('spectrometer is busy')
+                raise Warning('piccolo system is busy')
             self._tQ.sync_q.put(job)
             result = self._rQ.sync_q.get()
             if result != 'ok':
@@ -383,14 +458,19 @@ class PiccoloControl(PiccoloBaseComponent):
             raise RuntimeError(result)
 
     @piccoloPUT
-    def record_dark(self,run):
+    def record_dark(self,run=None):
         """record a dark spectrum
 
         :param run: name of the current run
         """
         if self._busy.locked():
             raise Warning('piccolo system is busy')
-        self._tQ.sync_q.put(('dark',run))
+        if run is not None:
+            try:
+                self._datadir.set_current_run(run)
+            except Warning:
+                pass
+        self._tQ.sync_q.put(('dark',self._datadir.get_current_run()))
         result = self._rQ.sync_q.get()
         if result != 'ok':
             raise RuntimeError(result)             
