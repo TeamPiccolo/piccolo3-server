@@ -1,3 +1,6 @@
+2019-04-25 Magnus Hagdorn
+ * piccolo3/server/PiccoloScheduler.py: log.info scheduling a job
+
 2019-04-24 Magnus Hagdorn
  * piccolo3/server/PiccoloSpectrometer.py: use simple max if peak detection
    fails

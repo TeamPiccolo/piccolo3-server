@@ -240,7 +240,7 @@ class PiccoloScheduler:
 
         job = PiccoloScheduledJob(at_time,job,interval=interval,end_time=end_time)
 
-        self.log.debug('scheduling job {}'.format(job.jid))
+        self.log.info('scheduling job {}'.format(job.jid))
         self._jobs[job.jid] = job
 
         return job
