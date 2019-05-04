@@ -97,8 +97,8 @@ class PiccoloDataDir(PiccoloBaseComponent):
             self._mntpnt = mntpnt
 
         if mount:
-            self.set_mount(True)
             self._datadir = os.path.join(self.mntpnt,datadir)
+            self.set_mount(True)
         else:
             if datadir.startswith(os.sep):
                 self._datadir = datadir
@@ -175,7 +175,7 @@ class PiccoloDataDir(PiccoloBaseComponent):
         msg = ''
         if mount:
             if self.get_mount():
-                raise Warning("device {} is already mounted".format(self.device))
+                self.log.warning("device {} is already mounted".format(self.device))
             else:
                 msg = "mounting {} at {}".format(self.device,self.mntpnt)
                 self.log.info(msg)
@@ -183,7 +183,7 @@ class PiccoloDataDir(PiccoloBaseComponent):
                                             self.device,self.mntpnt],stderr=subprocess.PIPE)
                 if cmdPipe.wait()!=0:
                     raise OSError('mounting {} at {}: {}'.format(self.device,self.mntpnt, cmdPipe.stderr.read()))
-                self._check_datadir()
+            self._check_datadir()
         else:
            if self.get_mount():
                 msg = "unmounting {}".format(self.device)

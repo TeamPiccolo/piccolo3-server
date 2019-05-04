@@ -1,4 +1,7 @@
 2019-05-20 Magnus Hagdorn
+ * piccolo3/server/PiccoloDataDir.py: fix bug handling mounted datadirs
+
+2019-05-20 Magnus Hagdorn
  * piccolo3/server/Piccolo.py: log a warning if spectrometer commands raise an
    exception
  * piccolo3/server/PiccoloSpectrometer.py: move connecting to spectrometer to
