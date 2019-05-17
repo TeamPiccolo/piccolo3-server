@@ -64,6 +64,9 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         
         super().__init__('spectrometer_worker.{}'.format(name),busy, tasks, results,info,daemon=daemon)
 
+        # set to true to create dummy spectra
+        self._dummy_spectra = False
+        
         # the integration times
         self._currentIntegrationTime = {}
         self._auto = {}
@@ -95,6 +98,10 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
     def stop(self):
         if self._spec is not None:
             self._spec.close()
+
+    @property
+    def dummy_spectra(self):
+        return self._dummy_spectra
             
     @property
     def channels(self):
@@ -211,7 +218,6 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                 result = str(e)
             self.results.put(result)
         elif task[0] == 'start_acquisition':
-            self.info.put(('status','busy'))
             channel = task[1]
             if channel not in self.channels:
                 self.result.put('channel {} is unknown'.format(channel))
@@ -220,6 +226,9 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
             task_id = task[3]
             self.results.put('ok')
 
+            if self._spec is not None:
+                self.info.put(('status','busy'))
+            
             self.log.info("acquisition {}: channel {}, integration time {}".format(str(task_id),channel,self.get_currentIntegrationTime(channel)))
             # create new spectrum instance
             spectrum = PiccoloSpectrum()
@@ -232,10 +241,14 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
             # record data
 
             if self._spec is None:
-                # If spectrometer is None, then simulate a spectrometer, for
-                # testing purposes.
-                time.sleep(self.get_currentIntegrationTime(channel)/1000.)
-                pixels = list(range(100))
+                if self.dummy_spectra:
+                    # If spectrometer is None, then simulate a spectrometer, for
+                    # testing purposes.
+                    time.sleep(self.get_currentIntegrationTime(channel)/1000.)
+                    pixels = list(range(100))
+                else:
+                    self.info.put(('spectrum',(task_id,None)))
+                    return
             else:
                 pixels = self._get_spectrum(self.get_currentIntegrationTime(channel))
                 spectrum['Temperature'] = self._spec.tec_get_temperature_C()
@@ -247,7 +260,8 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
             spectrum.pixels = pixels
 
             self.info.put(('spectrum',(task_id,spectrum)))
-            self.info.put(('status','idle'))
+            if self._spec is not None:
+                self.info.put(('status','idle'))
         elif task[0] == 'autointegration':
             channel = task[1]
             if channel not in self.channels:
@@ -257,10 +271,16 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
             target_tolerance = 10.
             num_attempts = 5
             self.results.put('ok')
-            self.info.put(('status','auto'))
 
             self.log.info("start autointegration: channel {}, target {}%, current integration time {}".format(channel,target, self.get_currentIntegrationTime(channel)))
 
+            if self._spec is None:
+                self.log.warning('no spectrometer')
+                self.set_auto(channel,'f')
+                return
+            
+            self.info.put(('status','auto'))
+                
             delta = 100.
             target_intensity = target/100.*self.meta['SaturationLevel']
             for i in range(num_attempts):
@@ -310,7 +330,8 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                 self.set_auto(channel,'f')
             
             self.log.info("finished autointegration: channel {}, current integration time {}".format(channel,self.get_currentIntegrationTime(channel)))
-            self.info.put(('status','idle'))
+            if self._spec is not None:
+                self.info.put(('status','idle'))
         else:
             result = 'unkown task: {}'.format(task)
             self.results.put(result)

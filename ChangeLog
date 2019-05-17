@@ -1,4 +1,8 @@
 2019-05-17 Magnus Hagdorn
+ * piccolo3/server/Piccolo.py: handle empty spectra
+ * piccolo3/server/PiccoloSpectrometer.py: handle missing spectrometers
+
+2019-05-17 Magnus Hagdorn
  * piccolo3/server/PiccoloSpectrometer.py: fix bug
 
 2019-05-17 Magnus Hagdorn

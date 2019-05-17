@@ -180,7 +180,8 @@ class PiccoloControlWorker(PiccoloWorkerThread):
         spectra = []
         for spec in self.spectrometers:
             s = self.spectrometers[spec].get_spectrum()
-            spectra.append(s)
+            if s is not None:
+                spectra.append(s)
         return spectra
 
     def record_dark(self,run_name,batch=None,sequence=0):
