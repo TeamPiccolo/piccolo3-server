@@ -80,9 +80,11 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
 
         try:
             self._spec = sb.Spectrometer.from_serial_number(serial=name)
+            self.info.put(('status','idle'))
         except:
             self.log.warning('failed to open spectrometer %s'%name)
             self._spec = None
+            self.info.put(('status','disconnected'))
 
         self.minIntegrationTime = 0
         self.maxIntegrationTime = 10000
@@ -209,6 +211,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                 result = str(e)
             self.results.put(result)
         elif task[0] == 'start_acquisition':
+            self.info.put(('status','busy'))
             channel = task[1]
             if channel not in self.channels:
                 self.result.put('channel {} is unknown'.format(channel))
@@ -244,6 +247,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
             spectrum.pixels = pixels
 
             self.info.put(('spectrum',(task_id,spectrum)))
+            self.info.put(('status','idle'))
         elif task[0] == 'autointegration':
             channel = task[1]
             if channel not in self.channels:
@@ -253,6 +257,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
             target_tolerance = 10.
             num_attempts = 5
             self.results.put('ok')
+            self.info.put(('status','auto'))
 
             self.log.info("start autointegration: channel {}, target {}%, current integration time {}".format(channel,target, self.get_currentIntegrationTime(channel)))
 
@@ -297,6 +302,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                 self.set_auto(channel,'f')
             
             self.log.info("finished autointegration: channel {}, current integration time {}".format(channel,self.get_currentIntegrationTime(channel)))
+            self.info.put(('status','idle'))
         else:
             result = 'unkown task: {}'.format(task)
             self.results.put(result)
@@ -375,6 +381,9 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
 
         loop = asyncio.get_event_loop()        
         self._iQ = janus.Queue(loop=loop) # info queue
+
+        self._status = 'idle'
+        self._status_changed = None
         
         self._channels = channels
         self._currentIntegrationTime = {}
@@ -444,6 +453,10 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
                     self._auto_changed()
             elif s == 'spectrum':
                 self._spectra[t[0]] = t[1]
+            elif s== 'status':
+                self._status = t
+                if self._status_changed is not None:
+                    self._status_changed()
             else:
                 self.log.warning('unknown spec {}={}'.format(s,t))
                 continue
@@ -510,10 +523,10 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
 
         :return: *busy* if recording or *idle*"""
 
-        if self._busy.locked():
-            return 'busy'
-        else:
-            return 'idle'
+        return self._status
+    @piccoloChanged
+    def callback_status(self,cb):
+        self._status_changed = cb
 
     def autointegrate(self,channel,target=80.):
         """start autointegration"""

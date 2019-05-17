@@ -151,7 +151,7 @@ class PiccoloControlWorker(PiccoloWorkerThread):
 
             # wait for autointegration
             for spec in self.spectrometers:
-                while self.spectrometers[spec].status() == 'busy':
+                while self.spectrometers[spec].status() == 'auto':
                     time.sleep(0.1)
                     
             self.shutters[shutter].closeShutter()
@@ -461,7 +461,7 @@ class PiccoloControl(PiccoloBaseComponent):
         if target is not None:
             self.set_target(target)
         self._tQ.sync_q.put(('auto',self.get_target()))
-        result = self_rQ.sync_q.get()
+        result = self._rQ.sync_q.get()
         if result != 'ok':
             raise RuntimeError(result)
 

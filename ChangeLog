@@ -1,3 +1,7 @@
+2019-05-17 Magnus Hagdorn
+ * piccolo3/server/Piccolo.py: fix bug; use correct spectrometer status
+ * piccolo3/server/PiccoloSpectrometer.py: report status; make it observable
+
 2019-04-25 Magnus Hagdorn
  * piccolo3/server/PiccoloScheduler.py: log.info scheduling a job
 
