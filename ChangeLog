@@ -1,4 +1,7 @@
 2019-05-17 Magnus Hagdorn
+ * piccolo3/server/PiccoloSpectrometer.py: fix bug
+
+2019-05-17 Magnus Hagdorn
  * piccolo3/server/PiccoloSpectrometer.py: try current integration time first
    when autointegrting (fixes #11)
 

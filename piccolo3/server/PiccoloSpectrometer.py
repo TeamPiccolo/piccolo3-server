@@ -273,10 +273,14 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                 # first try current integration time
                 test_times.insert(0,self.get_currentIntegrationTime(channel))
                 
-                for integration_time in test_times:
+                for i in range(len(test_times)):
+                    integration_time = test_times[i]
                     max_pixel = self._get_max(integration_time)
                     if max_pixel > 0.9*self.meta['SaturationLevel']:
-                        break
+                        if i==0:
+                            continue
+                        else:
+                            break
                     if max_pixel > 20000:
                         times.append(integration_time)
                         max_pixels.append(max_pixel)
