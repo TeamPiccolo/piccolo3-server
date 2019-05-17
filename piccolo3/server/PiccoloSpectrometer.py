@@ -269,7 +269,11 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                 max_pixels = []
                 success = False
                 auto_time = None
-                for integration_time in numpy.logspace(numpy.log10(self.minIntegrationTime),numpy.log10(self.maxIntegrationTime),20):
+                test_times =  list(numpy.logspace(numpy.log10(self.minIntegrationTime),numpy.log10(self.maxIntegrationTime),20))
+                # first try current integration time
+                test_times.insert(0,self.get_currentIntegrationTime(channel))
+                
+                for integration_time in test_times:
                     max_pixel = self._get_max(integration_time)
                     if max_pixel > 0.9*self.meta['SaturationLevel']:
                         break
