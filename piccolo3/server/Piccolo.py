@@ -146,12 +146,15 @@ class PiccoloControlWorker(PiccoloWorkerThread):
 
             # start autointegration
             for spec in self.spectrometers:
-                self.spectrometers[spec].autointegrate(shutter,target=target)
+                try:
+                    self.spectrometers[spec].autointegrate(shutter,target=target)
+                except Exception as e:
+                    self.log.warning(str(e))
             time.sleep(0.1)
 
             # wait for autointegration
             for spec in self.spectrometers:
-                while self.spectrometers[spec].status() == 'auto':
+                while self.spectrometers[spec].status == 'auto':
                     time.sleep(0.1)
                     
             self.shutters[shutter].closeShutter()
@@ -172,14 +175,21 @@ class PiccoloControlWorker(PiccoloWorkerThread):
 
         # start acquisition
         for spec in self.spectrometers:
-            self.spectrometers[spec].start_acquisition(channel,dark=dark)
+            try:
+                self.spectrometers[spec].start_acquisition(channel,dark=dark)
+            except Exception as e:
+                self.log.warning(str(e))
 
         time.sleep(0.1)
             
         # collect spectra
         spectra = []
         for spec in self.spectrometers:
-            s = self.spectrometers[spec].get_spectrum()
+            try:
+                s = self.spectrometers[spec].get_spectrum()
+            except Exception as e:
+                self.log.warning(str(e))
+                continue
             if s is not None:
                 spectra.append(s)
         return spectra

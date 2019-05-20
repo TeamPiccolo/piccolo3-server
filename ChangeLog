@@ -1,3 +1,9 @@
+2019-05-20 Magnus Hagdorn
+ * piccolo3/server/Piccolo.py: log a warning if spectrometer commands raise an
+   exception
+ * piccolo3/server/PiccoloSpectrometer.py: move connecting to spectrometer to
+   a task; use a method to check if spectrometer is idle, raise Warning if not
+
 2019-05-17 Magnus Hagdorn
  * piccolo3/server/Piccolo.py: handle empty spectra
  * piccolo3/server/PiccoloSpectrometer.py: handle missing spectrometers

@@ -64,6 +64,8 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         
         super().__init__('spectrometer_worker.{}'.format(name),busy, tasks, results,info,daemon=daemon)
 
+        self._serial = name
+        
         # set to true to create dummy spectra
         self._dummy_spectra = False
         
@@ -81,13 +83,8 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         self._maxIntegrationTime = None
         self._minIntegrationTime = None
 
-        try:
-            self._spec = sb.Spectrometer.from_serial_number(serial=name)
-            self.info.put(('status','idle'))
-        except:
-            self.log.warning('failed to open spectrometer %s'%name)
-            self._spec = None
-            self.info.put(('status','disconnected'))
+        self._spec = None
+        self.info.put(('status','disconnected'))
 
         self.minIntegrationTime = 0
         self.maxIntegrationTime = 10000
@@ -95,10 +92,34 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
             self.set_currentIntegrationTime(c,self.minIntegrationTime)
             self.set_auto(c,'n')
 
+    def connect(self):
+        if self._spec is None:
+            self.log.info('trying to connect to spectrometer %s'%self.serial)
+
+            next = time.time()
+            while True:
+                try:
+                    self._spec = sb.Spectrometer.from_serial_number(serial=self.serial)
+                    self._meta = None
+                    self.minIntegrationTime = 0
+                    self.info.put(('status','idle'))
+                    break
+                except:
+                    now = time.time()
+                    if now>next:
+                        self.log.warning('failed to open spectrometer %s'%self.serial)
+                        next = now+5
+                time.sleep(1)
+            self.minIntegrationTime = 0
+            
     def stop(self):
         if self._spec is not None:
             self._spec.close()
 
+    @property
+    def serial(self):
+        return self._serial
+            
     @property
     def dummy_spectra(self):
         return self._dummy_spectra
@@ -158,7 +179,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         return self._minIntegrationTime
     @minIntegrationTime.setter
     def minIntegrationTime(self,t):
-        if self._spec:
+        if self._spec is not None:
             t = max(self._spec.minimum_integration_time_micros/1000.,t)
         t = int(t)
         if t == self._minIntegrationTime:
@@ -196,7 +217,9 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         self.info.put(('auto',(c,s)))
         
     def process_task(self,task):
-        if task[0] == 'current':
+        if task[0] == 'connect':
+            self.connect()
+        elif task[0] == 'current':
             result = 'ok'
             try:
                 self.set_currentIntegrationTime(task[1],task[2])
@@ -443,6 +466,7 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
                                                        self._tQ, self._rQ,
                                                        self._iQ.sync_q)
         self._spectrometer.start()
+        self._tQ.put(('connect',None))
 
     def stop(self):
         # send poison pill to worker
@@ -497,8 +521,7 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         return self._currentIntegrationTime[channel]
     @piccoloPUT(parse_path=True)
     def set_current_time(self,channel,t):
-        if self._busy.locked():
-            raise Warning('spectrometer is busy')
+        self.check_idle()
         self._tQ.put(('current',channel,t))
         result = self._rQ.get()
         if result != 'ok':
@@ -512,8 +535,7 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         return self._minIntegrationTime
     @piccoloPUT
     def set_min_time(self,t):
-        if self._busy.locked():
-            raise Warning('spectrometer is busy')
+        self.check_idle()
         self._tQ.put(('min',t))
         result = self._rQ.get()
         if result != 'ok':
@@ -527,8 +549,7 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         return self._maxIntegrationTime    
     @piccoloPUT
     def set_max_time(self,t):
-        if self._busy.locked():
-            raise Warning('spectrometer is busy')
+        self.check_idle()
         self._tQ.put(('max',t))
         result = self._rQ.get()
         if result != 'ok':
@@ -546,21 +567,26 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
     def callback_autointegration(self,cb):
         self._auto_changed = cb
 
-    @piccoloGET
+    @property
     def status(self):
+        return self._status
+    @piccoloGET
+    def get_status(self):
         """return status of shutter
 
         :return: *busy* if recording or *idle*"""
 
-        return self._status
+        return self.status
     @piccoloChanged
     def callback_status(self,cb):
         self._status_changed = cb
+    def check_idle(self):
+        if self.status != 'idle':
+            raise Warning('spectrometer %s is %s'%(self.name,self.status))
 
     def autointegrate(self,channel,target=80.):
         """start autointegration"""
-        if self._busy.locked():
-            raise Warning('spectrometer is busy')
+        self.check_idle()
         if target<0 or target > 100:
             raise RuntimeError('target out of range 0<%s<100'%target)
         self._tQ.put(('autointegration',channel,target))
@@ -570,8 +596,7 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
 
     def start_acquisition(self,channel,dark=False):
         """start acquiring a spectrum"""
-        if self._busy.locked():
-            raise Warning('spectrometer is busy')
+        self.check_idle()
         if len(self._task_id)>0:
             raise Warning('spectrum not collected yet')
         task_id = uuid.uuid1()
@@ -584,6 +609,8 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
 
     def get_spectrum(self):
         """get the spectrum associated with the last acquisition"""
+        if self.status == 'disconnected':
+            raise Warning('spectrometer %s is disconnected'%self.name)
         if len(self._task_id) > 0:
             tID = self._task_id[0]
             if tID in self._spectra:
