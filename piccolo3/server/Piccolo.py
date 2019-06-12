@@ -301,7 +301,7 @@ class PiccoloControl(PiccoloBaseComponent):
         self._targetChanged = None
         
         # the scheduler for running tasks
-        self._scheduler = PiccoloScheduler()
+        self._scheduler = PiccoloScheduler(db='sqlite:///%s'%self._datadir.join('scheduler.sqlite'))
         
         # start the info updater thread        
         self._uiTask = loop.create_task(self._update_info())
@@ -322,7 +322,7 @@ class PiccoloControl(PiccoloBaseComponent):
 
         while True:
             for job in self._scheduler.runable_jobs:
-                task = job.run()
+                task = job.job
                 if not task:
                     continue
 

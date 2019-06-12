@@ -32,6 +32,7 @@ setup(
         'configobj',
         'python-daemon',
         'lockfile',
+        'sqlalchemy',
         'LinkHeader',
         'janus',
         'seabreeze',

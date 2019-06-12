@@ -15,176 +15,95 @@
 # You should have received a copy of the GNU General Public License
 # along with piccolo3-server.  If not, see <http://www.gnu.org/licenses/>.
 
-__all__ = ['PiccoloScheduledJob','PiccoloScheduler']
+__all__ = ['PiccoloScheduler']
 
-import uuid
 import logging
 import datetime, pytz
 from dateutil import parser
+import json
+import sqlalchemy
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
-class PiccoloScheduledJob:
+Base = declarative_base()
+
+class DateTimeTZ(sqlalchemy.TypeDecorator):
+    """a DateTime object with utc time zone"""
+    impl = sqlalchemy.DateTime
+
+    def process_result_value(self, value, dialect):
+        if value is not None:
+            return value.replace(tzinfo=pytz.utc)
+
+class JSONString(sqlalchemy.TypeDecorator):
+    """encode/decode an object as a JSON string"""
+    
+    impl = sqlalchemy.VARCHAR
+
+    def process_bind_param(self, value, dialect):
+        if value is not None:
+            value = json.dumps(value)
+
+        return value
+
+    def process_result_value(self, value, dialect):
+        if value is not None:
+            value = json.loads(value)
+        return value
+
+
+class QuietTime(Base):
+
+    __tablename__ = 'quiettime'
+
+    label = sqlalchemy.Column(sqlalchemy.String,primary_key=True)
+    time = sqlalchemy.Column(sqlalchemy.Time)
+    
+
+class PiccoloScheduledJob(Base):
     """a scheduled job
 
     a job will only get scheduled if it is in the future
     """
+    
+    __tablename__ = 'jobs'
 
-    ISOFORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"
+    id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
+    job = sqlalchemy.Column(JSONString)
+    start_time = sqlalchemy.Column(DateTimeTZ(timezone=True))
+    end_time = sqlalchemy.Column(DateTimeTZ(timezone=True), default=None)
+    interval = sqlalchemy.Column(sqlalchemy.Interval, default=None)
+    suspended = sqlalchemy.Column(sqlalchemy.Boolean, default=False)
 
-    def __init__(self,at_time,job,interval=None,end_time=None):
-        """
-        :param at_time: the time at which the job should run
-        :type at_time: datetime.datetime or isoformat string
-        :param interval: repeated schedule job if interval is not set to None
-        :type interval: datetime.timedelta or float (seconds) or None
-        :param job: scheduled job object, gets returned when run method is called
-        :param end_time: the time after which the job is no longer scheduled
-        :type end_time: datetime.datetime or isoformat string or None
-        """
-        
-        self._log = logging.getLogger('piccolo.scheduledjob')
+    def suspend(self):
+        self.suspended = True
 
-        # parse scheduling specs
-        if isinstance(at_time,datetime.datetime):
-            self._at = at_time
-        else:
-            self._at = parser.parse(at_time)
-
-        self._interval=None
-        if interval!=None:
-            if isinstance(interval,datetime.timedelta):
-                self._interval=interval
-            else:
-                self._interval=datetime.timedelta(seconds=interval)
-
-        self._end = None
-        if end_time!=None:
-            if isinstance(end_time,datetime.datetime):
-                self._end = end_time
-            else:
-                self._end = parser.parse(end_time)
-
-        self._jid = str(uuid.uuid1())
-        self._job = job
-        self._has_run = False
-        self._suspended = False
-
-        # check that scheduled time is not in the past
-        now = datetime.datetime.now(tz=pytz.utc)
-        if self._at < now and (self._end is None or self._end < now):
-            self.log.warning("scheduled job is in the past")
-            self._has_run = True
-        if self._end is not None and self._at >= self._end:
-            self.log.warning("job is scheduled for execution after the end time")
-            self._has_run = True
-
-
-    @property
-    def log(self):
-        """get the logger"""
-        return self._log
-
-    @property
-    def jid(self):
-        """get the ID"""
-        return self._jid
-
-    @property
-    def shouldRun(self):
-        """:return: True if the job has not already run and the scheduled time 
-                    < now
-        """
-        if self._has_run or self.suspended:
-            return False
-        else:
-            return self._at < datetime.datetime.now(tz=pytz.utc)
-
-    @property
-    def suspended(self):
-        """whether the job is suspended"""
-        return self._suspended
-
-    @property
-    def at_time(self):
-        """ the time at which the job should run"""
-        return self._at
-
-    @property
-    def end_time(self):
-        """get time after which the job should not be run anymore"""
-        return self._end
-
-    @property
-    def interval(self):
-        """the interval at which the job should be repeated or None for a single job"""
-        return self._interval
-        
-    def __lt__(self,other):
-        assert isinstance(other,PiccoloScheduledJob)
-        return self.at_time < other.at_time
-
-    def suspend(self,suspend=True):
-        """suspend job"""
-        self._suspended = suspend
-
-    def unsuspend(self,suspend=False):
-        """unsuspend job"""
-        self._suspended = suspend        
-
-    @property
-    def as_dict(self):
-        jobDict = {}
-        jobDict['job'] = self._job
-        for k in ['jid','suspended']: #,'at_time','end_time','interval','suspended']:
-            jobDict[k] = getattr(self,k)
-        for k in ['at_time','end_time']:
-            dt = getattr(self,k)
-            if dt!=None:
-                jobDict[k] = dt.strftime("%Y-%m-%dT%H:%M:%S%z")
-            else:
-                jobDict[k] = ''
-        if self.interval != None:
-            jobDict['interval'] = self.interval.total_seconds()
-        else:
-            jobDict['interval'] = 0
-        return jobDict
-
-    def run(self):
-        """run the job
-
-        check if the job should be run, increment scheduled time if applicable"""
-        if not self.shouldRun:
-            return None
-        if self._interval == None:
-            self.log.info("final run of job {0}".format(self.jid))
-            self._has_run = True
-        else:
-            n = (datetime.datetime.now(tz=pytz.utc)-self._at).total_seconds()//self._interval.total_seconds()+1
-            if n>1:
-                self.log.info("job {0}: fast forwarding {1} times".format(self.jid,n))
-                dt = datetime.timedelta(seconds=n*self._interval.total_seconds())
-            else:
-                dt = self._interval
-            self._at = self._at + dt
-            self.log.debug("job {0}: incrementing scheduled time".format(self.jid))
-            if self._end!= None and self._at >= self._end:
-                self._has_run = True
-                self.log.debug("job {0}: new time is beyond end time".format(self.jid))
-
-        return self._job
+    def unsuspend(self):
+        self.suspended = False
 
 class PiccoloScheduler:
     """the piccolo scheduler holds the scheduled jobs"""
-
-    def __init__(self):
-
+    
+    def __init__(self,db='sqlite:///:memory:'):
         self._log = logging.getLogger('piccolo.scheduler')
         
-        self._jobs = {}
+        engine = sqlalchemy.create_engine(db)
+        Session = sessionmaker(bind=engine)
+        self._session = Session()
+        Base.metadata.create_all(engine)
 
         self._loggedQuietTime = False
-        
-        self._quietStart = None
-        self._quietEnd = None
+
+        self._quietStart = self.session.query(QuietTime).filter(QuietTime.label == 'start').one_or_none()
+        if self._quietStart is None:
+            self._quietStart = QuietTime(label='start')
+            self.session.add(self._quietStart)
+            
+        self._quietEnd = self.session.query(QuietTime).filter(QuietTime.label == 'end').one_or_none()
+        if self._quietEnd is None:
+            self._quietEnd = QuietTime(label='end')
+            self.session.add(self._quietEnd)
+
 
     @property
     def log(self):
@@ -198,25 +117,33 @@ class PiccoloScheduler:
         else:
             return datetime.datetime.strptime(t,"%H:%M:%S").time().replace(tzinfo=pytz.utc)
 
+    @staticmethod
+    def now():
+        return datetime.datetime.now(tz=pytz.utc)
+
     @property
     def quietStart(self):
-        return self._quietStart
+        qs = self._quietStart.time
+        if qs is not None:
+            return qs.replace(tzinfo=pytz.utc)
     @quietStart.setter
     def quietStart(self,t):
-        self._quietStart = self._parseTime(t)
+        self._quietStart.time = self._parseTime(t)
 
     @property
     def quietEnd(self):
-        return self._quietEnd
+        qe = self._quietEnd.time
+        if qe is not None:
+            return qe.replace(tzinfo=pytz.utc)
     @quietEnd.setter
     def quietEnd(self,t):
-        self._quietEnd = self._parseTime(t)
+        self._quietEnd.time = self._parseTime(t)   
 
     @property
     def inQuietTime(self):
         inQuietTime = False
-        if self._quietStart and self._quietEnd:
-            now = datetime.datetime.now(tz=pytz.utc)
+        if self.quietStart and self.quietEnd:
+            now = self.now()
             qs = datetime.datetime.combine(now.date(),self.quietStart)
             qe = datetime.datetime.combine(now.date(),self.quietEnd)
             if qs > qe:
@@ -226,28 +153,46 @@ class PiccoloScheduler:
                 inQuietTime = True
         return inQuietTime
         
-    def add(self,at_time,job,interval=None,end_time=None):
+    def add(self,start_time,job,interval=None,end_time=None):
         """add a new job
 
-        :param at_time: the time at which the job should run
-        :type at_time: datetime.datetime
+        :param start_time: the time at which the job should run
+        :type start_time: datetime.datetime
         :param job: object returned when scheduled job is run
         :param interval: repeated schedule job if interval is not set to None
         :type interval: datetime.timedelta
         :param end_time: the time after which the job is no longer scheduled
         :type end_time: datetime.datetime or None
         """
+        now = self.now()
 
-        job = PiccoloScheduledJob(at_time,job,interval=interval,end_time=end_time)
-
-        self.log.info('scheduling job {}'.format(job.jid))
-        self._jobs[job.jid] = job
-
-        return job
+        if not isinstance(start_time, datetime.datetime):
+            start_time = parser.parse(start_time)
+        if not (end_time is None or isinstance(end_time, datetime.datetime)):
+            end_time = parser.parse(end_time)
+        if not (interval is None or isinstance(interval,datetime.timedelta)):
+            interval = datetime.timedelta(seconds=interval)
+        
+        if interval is None and start_time < now:
+            return
+        if end_time is not None and  end_time < now:
+            return
+            
+        new_job = PiccoloScheduledJob(job=job,
+                                      start_time=start_time,
+                                      interval=interval,
+                                      end_time=end_time)
+        self.session.add(new_job)
+        self.session.commit()
+        self.log.info('scheduled job {}'.format(new_job.id))
+        return new_job
 
     @property
+    def session(self):
+        return self._session
+    
+    @property
     def runable_jobs(self):
-        """get iterator over runable jobs"""
         if self.inQuietTime:
             if not self._loggedQuietTime:
                 self.log.info("quiet time started, not scheduling any jobs")
@@ -257,40 +202,24 @@ class PiccoloScheduler:
             if self._loggedQuietTime:
                 self.log.info("quiet time stopped, scheduling jobs again")
                 self._loggedQuietTime = False
-            return (job for job in self._jobs.values() if job.shouldRun)
-
-    def _suspend(self,jid,state):
-        """suspend or unsuspend particular job"""
-
-        self._jobs[jid].suspend(suspend=state)
-
-    def suspend(self,jid):
-        """suspend job
         
-        :param jid: id of job to suspend
-        :type jid: int"""
-        self._suspend(jid,True)
+            now = self.now()
+            for job in self.session.query(PiccoloScheduledJob).filter(PiccoloScheduledJob.start_time < now):
+                if not job.suspended:
+                    self.log.info("running scheduled job {0}".format(job.id))
+                    yield job
+                if job.interval is not None:
+                    n = int((now-job.start_time).total_seconds()//job.interval.total_seconds()+1)
+                    if n > 1:
+                        self.log.info("job {0}: fast forwarding {1} times".format(job.id,n))
+                    job.start_time += n*job.interval
+                if job.interval is None or (job.end_time is not None and job.start_time > job.end_time):
+                    self.log.info("job {0}: has expired".format(job.id))
+                    self.session.delete(job)
+            self.session.commit()
 
-    def unsuspend(self,jid):
-        """unsuspend job
-        
-        :param jid: id of job to unsuspend
-        :type jid: int"""
-        self._suspend(jid,False)
 
 
-    # implement methods so object can act as a read-only dictionary
-    def keys(self):
-        return self._jobs.keys()
-    def __getitem__(self,s):
-        return self._jobs[s]
-    def __len__(self):
-        return len(self._jobs)
-    def __iter__(self):
-        for s in self.keys():
-            yield s
-    def __contains__(self,s):
-        return s in self._jobs
         
 if __name__ == '__main__':
     from piccolo3.common import piccoloLogging
@@ -316,14 +245,12 @@ if __name__ == '__main__':
     ps.quietStart = qs.timetz()
     ps.quietEnd = qe.timetz()
 
-    print (ps.keys())
-    
     for i in range(0,100):
         for job in ps.runable_jobs:
-            print (job.jid, job.at_time, job.run())
+            print (job.id, job.start_time, job.job)
         time.sleep(1)
         if i==27:
-            ps.suspend(task2.jid)
+            task2.suspend()
         if i==41:
-            ps.unsuspend(task2.jid)
+            task2.unsuspend()
         print (i)
