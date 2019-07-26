@@ -94,22 +94,27 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
 
     def connect(self):
         if self._spec is None:
-            self.log.info('trying to connect to spectrometer %s'%self.serial)
+            if self.serial.startswith('dummy_'):
+                self.log.info('using dummy spectrometer %s'%self.serial)
+                self._dummy_spectra = True
+                self.info.put(('status','idle'))
+            else:
+                self.log.info('trying to connect to spectrometer %s'%self.serial)
 
-            next = time.time()
-            while True:
-                try:
-                    self._spec = sb.Spectrometer.from_serial_number(serial=self.serial)
-                    self._meta = None
-                    self.minIntegrationTime = 0
-                    self.info.put(('status','idle'))
-                    break
-                except:
-                    now = time.time()
-                    if now>next:
-                        self.log.warning('failed to open spectrometer %s'%self.serial)
-                        next = now+5
-                time.sleep(1)
+                next = time.time()
+                while True:
+                    try:
+                        self._spec = sb.Spectrometer.from_serial_number(serial=self.serial)
+                        self._meta = None
+                        self.minIntegrationTime = 0
+                        self.info.put(('status','idle'))
+                        break
+                    except:
+                        now = time.time()
+                        if now>next:
+                            self.log.warning('failed to open spectrometer %s'%self.serial)
+                            next = now+5
+                    time.sleep(1)
             self.minIntegrationTime = 0
             
     def stop(self):
