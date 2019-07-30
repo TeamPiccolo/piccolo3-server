@@ -228,7 +228,7 @@ class PiccoloScheduler(PiccoloBaseComponent):
         if not (end_time is None or isinstance(end_time, datetime.datetime)):
             end_time = parser.parse(end_time)
         if not (interval is None or isinstance(interval,datetime.timedelta)):
-            interval = datetime.timedelta(seconds=interval)
+            interval = datetime.timedelta(seconds=float(interval))
         
         if interval is None and start_time < now:
             return
