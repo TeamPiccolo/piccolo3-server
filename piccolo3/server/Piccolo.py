@@ -302,6 +302,8 @@ class PiccoloControl(PiccoloBaseComponent):
         
         # the scheduler for running tasks
         self._scheduler = PiccoloScheduler(db='sqlite:///%s'%self._datadir.join('scheduler.sqlite'))
+        self.coapResources.add_resource(['scheduler'],self._scheduler.coapResources)
+        
         
         # start the info updater thread        
         self._uiTask = loop.create_task(self._update_info())

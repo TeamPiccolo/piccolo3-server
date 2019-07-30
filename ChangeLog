@@ -1,3 +1,8 @@
+2019-07-30 Magnus Hagdorn
+ * piccolo3/server/Piccolo.py: add coap resources for scheduler
+ * piccolo3/server/PiccoloScheduler.py: add flag to enable/disable scheduler 
+   quiet time; expose quiet time options as coap resources
+
 2019-07-26 Magnus Hagdorn
  * piccolo3/server/PiccoloSpectrometer.py: add support for dummy spectrometers
 

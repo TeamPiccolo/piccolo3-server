@@ -17,6 +17,7 @@
 
 __all__ = ['PiccoloScheduler']
 
+from .PiccoloComponent import PiccoloBaseComponent, PiccoloNamedComponent, piccoloGET, piccoloPUT, piccoloChanged
 import logging
 import datetime, pytz
 from dateutil import parser
@@ -52,6 +53,12 @@ class JSONString(sqlalchemy.TypeDecorator):
         return value
 
 
+class Settings(Base):
+    __tablename__ = 'settings'
+
+    key = sqlalchemy.Column(sqlalchemy.String,primary_key=True)
+    value = sqlalchemy.Column(sqlalchemy.String)
+    
 class QuietTime(Base):
 
     __tablename__ = 'quiettime'
@@ -81,11 +88,14 @@ class PiccoloScheduledJob(Base):
     def unsuspend(self):
         self.suspended = False
 
-class PiccoloScheduler:
+class PiccoloScheduler(PiccoloBaseComponent):
     """the piccolo scheduler holds the scheduled jobs"""
+
+    NAME = "scheduler"
     
     def __init__(self,db='sqlite:///:memory:'):
-        self._log = logging.getLogger('piccolo.scheduler')
+
+        super().__init__()
         
         engine = sqlalchemy.create_engine(db)
         Session = sessionmaker(bind=engine)
@@ -94,55 +104,102 @@ class PiccoloScheduler:
 
         self._loggedQuietTime = False
 
+        self._quietTimeEnabled = self.session.query(Settings).filter(Settings.key == 'quiet_time_enabled').one_or_none()
+        if self._quietTimeEnabled is None:
+            self._quietTimeEnabled = Settings(key='quiet_time_enabled',value='False')
+            self.session.add(self._quietTimeEnabled)
+        self._quietTimeEnabled_changed = False
+        
         self._quietStart = self.session.query(QuietTime).filter(QuietTime.label == 'start').one_or_none()
         if self._quietStart is None:
-            self._quietStart = QuietTime(label='start')
+            self._quietStart = QuietTime(label='start',time=self._parseTime('22:00:00'))
             self.session.add(self._quietStart)
+        self._quietStart_changed = None
             
         self._quietEnd = self.session.query(QuietTime).filter(QuietTime.label == 'end').one_or_none()
         if self._quietEnd is None:
-            self._quietEnd = QuietTime(label='end')
+            self._quietEnd = QuietTime(label='end',time=self._parseTime('04:00:00'))
             self.session.add(self._quietEnd)
+        self._quietEnd_changed = None
 
-
-    @property
-    def log(self):
-        """get the logger"""
-        return self._log
-        
     @staticmethod
     def _parseTime(t):
         if t is None or isinstance(t,datetime.time):
             return t
         else:
-            return datetime.datetime.strptime(t,"%H:%M:%S").time().replace(tzinfo=pytz.utc)
+            try:
+                t = datetime.datetime.strptime(t,"%H:%M:%S%z").timetz()
+            except:
+                t = datetime.datetime.strptime(t,"%H:%M:%S").time().replace(tzinfo=pytz.utc)
+            return t
 
     @staticmethod
     def now():
         return datetime.datetime.now(tz=pytz.utc)
 
+    @piccoloGET
+    def get_quietTimeEnabled(self):
+        if self._quietTimeEnabled.value == 'True':
+            return True
+        else:
+            return False
+    @piccoloPUT
+    def set_quietTimeEnabled(self,e):
+        if isinstance(e,bool):
+            e = str(e)
+        if not e in ['True','False']:
+            raise ValueError('unexpected value for quietTimeEnabled %s'%str(e))
+        self._quietTimeEnabled.value = e
+        self.session.commit()
+        if self._quietTimeEnabled_changed is not None:
+            self._quietTimeEnabled_changed()
+    @piccoloChanged
+    def callback_quietTimeEnabled(self,cb):
+        self._quietTimeEnabled_changed = cb
+    @property
+    def quietTimeEnabled(self):
+        return self.get_quietTimeEnabled()
+        
+    @piccoloGET
+    def get_quietStart(self):
+        return self.quietStart.strftime("%H:%M:%S%z")
+    @piccoloPUT
+    def set_quietStart(self,t):
+        self._quietStart.time = self._parseTime(t)
+        self.session.commit()
+        if self._quietStart_changed is not None:
+            self._quietStart_changed()
+    @piccoloChanged
+    def callback_quietStart(self,cb):
+        self._quietStart_changed = cb
     @property
     def quietStart(self):
         qs = self._quietStart.time
         if qs is not None:
             return qs.replace(tzinfo=pytz.utc)
-    @quietStart.setter
-    def quietStart(self,t):
-        self._quietStart.time = self._parseTime(t)
 
+    @piccoloGET
+    def get_quietEnd(self):
+        return self.quietEnd.strftime("%H:%M:%S%z")
+    @piccoloPUT
+    def set_quietEnd(self,t):
+        self._quietEnd.time = self._parseTime(t)
+        self.session.commit()
+        if self._quietEnd_changed is not None:
+            self._quietEnd_changed()
+    @piccoloChanged
+    def callback_quietEnd(self,cb):
+        self._quietEnd_changed = cb
     @property
     def quietEnd(self):
         qe = self._quietEnd.time
         if qe is not None:
             return qe.replace(tzinfo=pytz.utc)
-    @quietEnd.setter
-    def quietEnd(self,t):
-        self._quietEnd.time = self._parseTime(t)   
 
     @property
     def inQuietTime(self):
         inQuietTime = False
-        if self.quietStart and self.quietEnd:
+        if self.quietTimeEnabled:
             now = self.now()
             qs = datetime.datetime.combine(now.date(),self.quietStart)
             qe = datetime.datetime.combine(now.date(),self.quietEnd)
@@ -242,8 +299,10 @@ if __name__ == '__main__':
     qe = now+datetime.timedelta(seconds=80)
 
     
-    ps.quietStart = qs.timetz()
-    ps.quietEnd = qe.timetz()
+    ps.set_quietStart(qs.timetz())
+    ps.set_quietEnd(qe.timetz())
+
+    ps.set_quietTimeEnabled(True)
 
     for i in range(0,100):
         for job in ps.runable_jobs:
