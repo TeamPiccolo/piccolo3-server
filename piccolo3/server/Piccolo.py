@@ -192,6 +192,8 @@ class PiccoloControlWorker(PiccoloWorkerThread):
                 continue
             if s is not None:
                 spectra.append(s)
+
+        self.shutters[channel].closeShutter()
         return spectra
 
     def record_dark(self,run_name,batch=None,sequence=0):
@@ -301,7 +303,7 @@ class PiccoloControl(PiccoloBaseComponent):
         self._targetChanged = None
         
         # the scheduler for running tasks
-        self._scheduler = PiccoloScheduler(db='sqlite:///%s'%self._datadir.join('scheduler.sqlite'))
+        self._scheduler = PiccoloScheduler(db='sqlite:////var/run/piccolo.sqlite')
         
         # start the info updater thread        
         self._uiTask = loop.create_task(self._update_info())

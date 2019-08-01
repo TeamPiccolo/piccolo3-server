@@ -1,3 +1,6 @@
+2019-08-01 Magnus Hagdorn
+ * piccolo3/server/Piccolo.py: close shutter after recording a spectrum
+
 2019-06-12 Magnus Hagdorn
  * piccolo3/server/Piccolo.py: use new scheduler features
  * piccolo3/server/PiccoloScheduler.py: rewrite to persist schedule using
