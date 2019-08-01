@@ -192,6 +192,8 @@ class PiccoloControlWorker(PiccoloWorkerThread):
                 continue
             if s is not None:
                 spectra.append(s)
+
+        self.shutters[channel].closeShutter()
         return spectra
 
     def record_dark(self,run_name,batch=None,sequence=0):
