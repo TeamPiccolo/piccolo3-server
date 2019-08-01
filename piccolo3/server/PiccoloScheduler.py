@@ -18,6 +18,7 @@
 __all__ = ['PiccoloScheduler']
 
 from .PiccoloComponent import PiccoloBaseComponent, PiccoloNamedComponent, piccoloGET, piccoloPUT, piccoloChanged
+from piccolo3.common import PiccoloSchedulerStatus
 import logging
 import datetime, pytz
 from dateutil import parser
@@ -78,15 +79,33 @@ class PiccoloScheduledJob(Base):
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
     job = sqlalchemy.Column(JSONString)
     start_time = sqlalchemy.Column(DateTimeTZ(timezone=True))
+    next_time = sqlalchemy.Column(DateTimeTZ(timezone=True))
     end_time = sqlalchemy.Column(DateTimeTZ(timezone=True), default=None)
     interval = sqlalchemy.Column(sqlalchemy.Interval, default=None)
-    suspended = sqlalchemy.Column(sqlalchemy.Boolean, default=False)
+    status = sqlalchemy.Column(sqlalchemy.Enum(PiccoloSchedulerStatus), default=PiccoloSchedulerStatus.active)
 
+    def check_done(self):
+        changed = False
+        if self.status in [PiccoloSchedulerStatus.active,PiccoloSchedulerStatus.suspended]:
+            now = datetime.datetime.now(tz=pytz.utc)
+            if self.end_time is not None and self.next_time > self.end_time:
+                self.status = PiccoloSchedulerStatus.done
+                changed = True
+        return changed
+    
     def suspend(self):
-        self.suspended = True
+        changed = self.check_done()
+        if self.status == PiccoloSchedulerStatus.active:
+            self.status = PiccoloSchedulerStatus.suspended
+            changed = True
+        return changed
 
     def unsuspend(self):
-        self.suspended = False
+        changed = self.check_done()
+        if self.status == PiccoloSchedulerStatus.suspended:
+            self.status = PiccoloSchedulerStatus.active
+            changed = True
+        return changed
 
     def tolist(self):
         if self.end_time is not None:
@@ -99,7 +118,7 @@ class PiccoloScheduledJob(Base):
             str(self.start_time),
             et,
             self.interval,
-            self.suspended]
+            self.status.name]
 
 class PiccoloScheduler(PiccoloBaseComponent):
     """the piccolo scheduler holds the scheduled jobs"""
@@ -262,6 +281,7 @@ class PiccoloScheduler(PiccoloBaseComponent):
             
         new_job = PiccoloScheduledJob(job=job,
                                       start_time=start_time,
+                                      next_time=start_time,
                                       interval=interval,
                                       end_time=end_time)
         self.session.add(new_job)
@@ -277,32 +297,42 @@ class PiccoloScheduler(PiccoloBaseComponent):
     
     @property
     def runable_jobs(self):
-        if self.inQuietTime:
+        inQuietTime = self.inQuietTime
+        if inQuietTime:
             if not self._loggedQuietTime:
                 self.log.info("quiet time started, not scheduling any jobs")
                 self._loggedQuietTime = True
-            return []
         else:
             if self._loggedQuietTime:
                 self.log.info("quiet time stopped, scheduling jobs again")
                 self._loggedQuietTime = False
-        
-            now = self.now()
-            for job in self.session.query(PiccoloScheduledJob).filter(PiccoloScheduledJob.start_time < now):
-                if not job.suspended:
-                    self.log.info("running scheduled job {0}".format(job.id))
-                    yield job
-                if job.interval is not None:
-                    n = int((now-job.start_time).total_seconds()//job.interval.total_seconds()+1)
-                    if n > 1:
-                        self.log.info("job {0}: fast forwarding {1} times".format(job.id,n))
-                    job.start_time += n*job.interval
-                if job.interval is None or (job.end_time is not None and job.start_time > job.end_time):
-                    self.log.info("job {0}: has expired".format(job.id))
-                    self.session.delete(job)
-                    if self._jobs_changed is not None:
-                        self._jobs_changed()
-            self.session.commit()
+
+        # loop over active/suspended jobs
+        now = self.now()
+        changed = False
+        for job in self.session.query(PiccoloScheduledJob).filter(
+                PiccoloScheduledJob.next_time < now,
+                PiccoloScheduledJob.status.in_([PiccoloSchedulerStatus.active,PiccoloSchedulerStatus.suspended])):
+            if job.status == PiccoloSchedulerStatus.active and not inQuietTime:
+                self.log.info("running scheduled job {0}".format(job.id))
+                yield job
+                
+            # increment next time
+            if job.interval is not None:
+                n = int((now-job.next_time).total_seconds()//job.interval.total_seconds()+1)
+                if n > 1:
+                    self.log.info("job {0}: fast forwarding {1} times".format(job.id,n))
+                job.next_time += n*job.interval
+            
+            # check if job is finished
+            if job.interval is None or (job.end_time is not None and job.next_time > job.end_time):
+                self.log.info("job {0}: has expired".format(job.id))
+                job.status = PiccoloSchedulerStatus.done
+                changed = True
+                
+        if changed and self._jobs_changed is not None:
+            self._jobs_changed()
+        self.session.commit()
 
 
 
@@ -313,7 +343,7 @@ if __name__ == '__main__':
 
     piccoloLogging(debug=True)
 
-    ps = PiccoloScheduler()
+    ps = PiccoloScheduler(db='sqlite:///test.sqlite')
 
     now = datetime.datetime.now(tz=pytz.utc)
     
@@ -326,7 +356,6 @@ if __name__ == '__main__':
 
     qs = now+datetime.timedelta(seconds=60)
     qe = now+datetime.timedelta(seconds=80)
-
     
     ps.set_quietStart(qs.timetz())
     ps.set_quietEnd(qe.timetz())
