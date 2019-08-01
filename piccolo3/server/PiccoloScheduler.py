@@ -88,6 +88,19 @@ class PiccoloScheduledJob(Base):
     def unsuspend(self):
         self.suspended = False
 
+    def tolist(self):
+        if self.end_time is not None:
+            et = self.end_time
+        else:
+            et = None
+        return [
+            self.id,
+            self.job,
+            str(self.start_time),
+            et,
+            self.interval,
+            self.suspended]
+
 class PiccoloScheduler(PiccoloBaseComponent):
     """the piccolo scheduler holds the scheduled jobs"""
 
@@ -121,6 +134,8 @@ class PiccoloScheduler(PiccoloBaseComponent):
             self._quietEnd = QuietTime(label='end',time=self._parseTime('04:00:00'))
             self.session.add(self._quietEnd)
         self._quietEnd_changed = None
+
+        self._jobs_changed = None
 
     @staticmethod
     def _parseTime(t):
@@ -196,6 +211,16 @@ class PiccoloScheduler(PiccoloBaseComponent):
         if qe is not None:
             return qe.replace(tzinfo=pytz.utc)
 
+    @piccoloGET
+    def get_jobs(self):
+        jobs = []
+        for job in self.session.query(PiccoloScheduledJob):
+            jobs.append(job.tolist())
+        return jobs
+    @piccoloChanged
+    def callback_jobs(self,cb):
+        self._jobs_changed = cb
+
     @property
     def inQuietTime(self):
         inQuietTime = False
@@ -242,6 +267,8 @@ class PiccoloScheduler(PiccoloBaseComponent):
         self.session.add(new_job)
         self.session.commit()
         self.log.info('scheduled job {}'.format(new_job.id))
+        if self._jobs_changed is not None:
+            self._jobs_changed()
         return new_job
 
     @property
@@ -273,6 +300,8 @@ class PiccoloScheduler(PiccoloBaseComponent):
                 if job.interval is None or (job.end_time is not None and job.start_time > job.end_time):
                     self.log.info("job {0}: has expired".format(job.id))
                     self.session.delete(job)
+                    if self._jobs_changed is not None:
+                        self._jobs_changed()
             self.session.commit()
 
 
