@@ -109,15 +109,19 @@ class PiccoloScheduledJob(Base):
 
     def tolist(self):
         if self.end_time is not None:
-            et = self.end_time
+            et = self.end_time.isoformat()
         else:
             et = None
+        if self.interval is not None:
+            dt = self.interval.total_seconds()
+        else:
+            dt = None
         return [
             self.id,
             self.job,
-            str(self.start_time),
+            self.start_time.isoformat(),
             et,
-            self.interval,
+            dt,
             self.status.name]
 
 class PiccoloScheduler(PiccoloBaseComponent):
@@ -233,7 +237,7 @@ class PiccoloScheduler(PiccoloBaseComponent):
     @piccoloGET
     def get_jobs(self):
         jobs = []
-        for job in self.session.query(PiccoloScheduledJob):
+        for job in self.session.query(PiccoloScheduledJob).filter(PiccoloScheduledJob.status.in_([PiccoloSchedulerStatus.active,PiccoloSchedulerStatus.suspended])):
             jobs.append(job.tolist())
         return jobs
     @piccoloChanged

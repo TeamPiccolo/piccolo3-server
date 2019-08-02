@@ -1,3 +1,7 @@
+2019-08-02 Magnus Hagdorn
+ * piccolo3/server/PiccoloScheduler.py: turn datetimes and timedeltas into
+   something that can be serialised
+
 2019-08-01 Magnus Hagdorn
  * piccolo3/server/PiccoloScheduler.py: use a status enum to record the status
    of a job; do not delete completed jobs
