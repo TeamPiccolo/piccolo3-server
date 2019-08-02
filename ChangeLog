@@ -1,4 +1,8 @@
 2019-08-02 Magnus Hagdorn
+ * piccolo3/server/PiccoloScheduler.py: add functionality to
+   suspend/unsuspend/delete jobs
+
+2019-08-02 Magnus Hagdorn
  * piccolo3/server/PiccoloScheduler.py: turn datetimes and timedeltas into
    something that can be serialised
 

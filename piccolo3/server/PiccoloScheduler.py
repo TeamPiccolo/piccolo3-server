@@ -107,6 +107,13 @@ class PiccoloScheduledJob(Base):
             changed = True
         return changed
 
+    def delete(self):
+        changed = False
+        if self.status in [PiccoloSchedulerStatus.active,PiccoloSchedulerStatus.suspended]:
+            self.status = PiccoloSchedulerStatus.deleted
+            changed = True
+        return changed
+
     def tolist(self):
         if self.end_time is not None:
             et = self.end_time.isoformat()
@@ -244,6 +251,30 @@ class PiccoloScheduler(PiccoloBaseComponent):
     def callback_jobs(self,cb):
         self._jobs_changed = cb
 
+    @piccoloPUT
+    def suspend(self,jid):
+        job = self.get_job(jid)
+        if job is not None and job.suspend():
+            self.session.commit()
+            if self._jobs_changed is not None:
+                self._jobs_changed()
+        
+    @piccoloPUT
+    def unsuspend(self,jid):
+        job = self.get_job(jid)
+        if job is not None and job.unsuspend():
+            self.session.commit()
+            if self._jobs_changed is not None:
+                self._jobs_changed()
+                
+    @piccoloPUT
+    def delete(self,jid):
+        job = self.get_job(jid)
+        if job is not None and job.delete():
+            self.session.commit()
+            if self._jobs_changed is not None:
+                self._jobs_changed()
+                
     @property
     def inQuietTime(self):
         inQuietTime = False
@@ -298,6 +329,9 @@ class PiccoloScheduler(PiccoloBaseComponent):
     @property
     def session(self):
         return self._session
+
+    def get_job(self,jid):
+        return self.session.query(PiccoloScheduledJob).filter(PiccoloScheduledJob.id == jid).one_or_none()
     
     @property
     def runable_jobs(self):
