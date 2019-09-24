@@ -325,14 +325,13 @@ class PiccoloControl(PiccoloBaseComponent):
         """check if a scheduled task should be run"""
 
         while True:
+            while self._busy.locked():
+                await asyncio.sleep(1)
             for job in self._scheduler.runable_jobs:
                 task = job.job
                 if not task:
                     continue
 
-                if self._busy.locked():
-                    self.log.warning('piccolo is busy, ignoring task {}'.format(job.jid))
-                    continue
                 await self._tQ.async_q.put(task)
                 result = await self._rQ.async_q.get()
                 if result != 'ok':

@@ -1,3 +1,7 @@
+2019-09-24 Magnus Hagdorn
+ * piccolo3/server/Piccolo.py: use async sleep while waiting for piccolo
+ * piccolo3/server/PiccoloScheduler.py: fix finding scheduled jobs
+
 2019-08-02 Magnus Hagdorn
  * piccolo3/server/PiccoloScheduler.py: add functionality to
    suspend/unsuspend/delete jobs

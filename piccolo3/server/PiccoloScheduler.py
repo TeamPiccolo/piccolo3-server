@@ -346,14 +346,14 @@ class PiccoloScheduler(PiccoloBaseComponent):
                 self._loggedQuietTime = False
 
         # loop over active/suspended jobs
-        now = self.now()
-        changed = False
         for job in self.session.query(PiccoloScheduledJob).filter(
-                PiccoloScheduledJob.next_time < now,
+                PiccoloScheduledJob.next_time < self.now(),
                 PiccoloScheduledJob.status.in_([PiccoloSchedulerStatus.active,PiccoloSchedulerStatus.suspended])):
+            now = self.now()            
             if job.status == PiccoloSchedulerStatus.active and not inQuietTime:
-                self.log.info("running scheduled job {0}".format(job.id))
-                yield job
+                runJob = True
+            else:
+                runJob = False
                 
             # increment next time
             if job.interval is not None:
@@ -363,16 +363,17 @@ class PiccoloScheduler(PiccoloBaseComponent):
                 job.next_time += n*job.interval
             
             # check if job is finished
-            if job.interval is None or (job.end_time is not None and job.next_time > job.end_time):
+            if job.interval is None or (job.end_time is not None and job.next_time > job.end_time) or job.end_time < now:
                 self.log.info("job {0}: has expired".format(job.id))
                 job.status = PiccoloSchedulerStatus.done
-                changed = True
                 
-        if changed and self._jobs_changed is not None:
-            self._jobs_changed()
-        self.session.commit()
+            if self._jobs_changed is not None:
+                self._jobs_changed()
+            self.session.commit()
 
-
+            if runJob:
+                self.log.info("running scheduled job {0}".format(job.id))
+                yield job
 
         
 if __name__ == '__main__':
