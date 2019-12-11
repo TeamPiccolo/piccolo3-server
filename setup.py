@@ -40,6 +40,7 @@ setup(
     entry_points={
         'console_scripts': [
             'piccolo3-server = piccolo3.pserver:main',
+            'piccolo3-reboot = piccolo3.reboot:main',
         ],
     },
 
