@@ -97,7 +97,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
             if self.serial.startswith('dummy_'):
                 self.log.info('using dummy spectrometer %s'%self.serial)
                 self._dummy_spectra = True
-                self.info.put(('status','idle'))
+                self._spec = 'dummy'
             else:
                 self.log.info('trying to connect to spectrometer %s'%self.serial)
 
@@ -105,9 +105,6 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                 while True:
                     try:
                         self._spec = sb.Spectrometer.from_serial_number(serial=self.serial)
-                        self._meta = None
-                        self.minIntegrationTime = 0
-                        self.info.put(('status','idle'))
                         break
                     except:
                         now = time.time()
@@ -115,11 +112,29 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                             self.log.warning('failed to open spectrometer %s'%self.serial)
                             next = now+5
                     time.sleep(1)
+                self._meta = None
+                self.log.info('connected to spectrometer %s'%self.serial)
+            self.info.put(('status','idle'))
             self.minIntegrationTime = 0
             
+    @property
+    def is_dummy(self):
+        if self._spec is None:
+            self.connect()
+        return self._spec == 'dummy'
+    
+    @property
+    def spec(self):
+        if not self.is_dummy:
+            if not self._spec._dev.is_open:
+                self.log.info('opening device')
+                self._spec.open()
+        return self._spec
+        
+            
     def stop(self):
-        if self._spec is not None:
-            self._spec.close()
+        if not self.is_dummy:
+            self.spec.close()
 
     @property
     def serial(self):
@@ -136,7 +151,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
     @property
     def meta(self):
         if self._meta is None:
-            if self._spec is None:
+            if self.is_dummy:
                 self._meta = {
                     'SerialNumber': self.name,
                     'WavelengthCalibrationCoefficients': [0,1,0,0],
@@ -150,15 +165,15 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                 }
             else:
                 # fit a polynomial to the wavelengths
-                wavelengths = self._spec.wavelengths()
+                wavelengths = self.spec.wavelengths()
                 coeff = numpy.polyfit(numpy.arange(len(wavelengths)),wavelengths,3)
                 self._meta = {
-                    'SerialNumber': self._spec.serial_number,
+                    'SerialNumber': self.spec.serial_number,
                     'WavelengthCalibrationCoefficients': list(coeff[::-1]),
                     'IntegrationTimeUnits': 'milliseconds',
-                    'DarkPixels': list(self._spec._dark),
-                    'NonlinearityCorrectionCoefficients': list(self._spec._nc.coeffs[::-1]),
-                    'SaturationLevel' : 200000,
+                    'DarkPixels': list(self.spec.f.spectrometer.get_electric_dark_pixel_indices()),
+                    'NonlinearityCorrectionCoefficients': list(self.spec._nc.coeffs[::-1]),
+                    'SaturationLevel' : self.spec.max_intensity,
                     'TemperatureEnabled': False,
                     'TemperatureUnits': 'degrees Celcius'
                 }
@@ -184,8 +199,8 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         return self._minIntegrationTime
     @minIntegrationTime.setter
     def minIntegrationTime(self,t):
-        if self._spec is not None:
-            t = max(self._spec.minimum_integration_time_micros/1000.,t)
+        if not self.is_dummy:
+            t = max(self.spec.minimum_integration_time_micros/1000.,t)
         t = int(t)
         if t == self._minIntegrationTime:
             return
@@ -254,7 +269,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
             task_id = task[3]
             self.results.put('ok')
 
-            if self._spec is not None:
+            if not self.is_dummy:
                 self.info.put(('status','busy'))
             
             self.log.info("acquisition {}: channel {}, integration time {}".format(str(task_id),channel,self.get_currentIntegrationTime(channel)))
@@ -268,7 +283,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
             
             # record data
 
-            if self._spec is None:
+            if self.is_dummy:
                 if self.dummy_spectra:
                     # If spectrometer is None, then simulate a spectrometer, for
                     # testing purposes.
@@ -279,7 +294,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                     return
             else:
                 pixels = self._get_spectrum(self.get_currentIntegrationTime(channel))
-                spectrum['Temperature'] = self._spec.tec_get_temperature_C()
+                spectrum['Temperature'] = self.spec.tec_get_temperature_C()
                 
             spectrum.update(self.meta)
             spectrum['IntegrationTime'] = self.get_currentIntegrationTime(channel)
@@ -288,7 +303,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
             spectrum.pixels = pixels
 
             self.info.put(('spectrum',(task_id,spectrum)))
-            if self._spec is not None:
+            if not self.is_dummy:
                 self.info.put(('status','idle'))
         elif task[0] == 'autointegration':
             channel = task[1]
@@ -302,7 +317,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
 
             self.log.info("start autointegration: channel {}, target {}%, current integration time {}".format(channel,target, self.get_currentIntegrationTime(channel)))
 
-            if self._spec is None:
+            if self.is_dummy:
                 self.log.warning('no spectrometer')
                 self.set_auto(channel,'f')
                 return
@@ -358,7 +373,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                 self.set_auto(channel,'f')
             
             self.log.info("finished autointegration: channel {}, current integration time {}".format(channel,self.get_currentIntegrationTime(channel)))
-            if self._spec is not None:
+            if not self.is_dummy:
                 self.info.put(('status','idle'))
         else:
             result = 'unkown task: {}'.format(task)
@@ -367,11 +382,11 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
     def _get_spectrum(self,integration_time):
         integration_time = max(integration_time,self.minIntegrationTime)
         integration_time = min(integration_time,self.maxIntegrationTime)
-        self._spec.integration_time_micros(integration_time * 1000.)
+        self.spec.integration_time_micros(integration_time * 1000.)
         time.sleep(0.1)
-        pixels = self._spec.intensities()
-        pixels = self._spec.intensities()
-        self._spec.integration_time_micros(self.minIntegrationTime* 1000.)
+        pixels = self.spec.intensities()
+        pixels = self.spec.intensities()
+        self.spec.integration_time_micros(self.minIntegrationTime* 1000.)
         self.log.debug('recorded spectrum t={}, max intensity={}'.format(integration_time,max(pixels)))
         return pixels
                        

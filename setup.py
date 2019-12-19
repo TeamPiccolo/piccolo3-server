@@ -35,7 +35,7 @@ setup(
         'sqlalchemy',
         'LinkHeader',
         'janus',
-        'seabreeze',
+        'seabreeze >= 1.0.0',
     ],
     entry_points={
         'console_scripts': [
