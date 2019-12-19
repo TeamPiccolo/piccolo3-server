@@ -627,6 +627,15 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
             self._task_id.pop()
             raise RuntimeError(result)
 
+    def _get_spectrum(self,tID,status):
+        s = self._spectra[tID]
+        del self._spectra[tID]
+        self._task_id.popleft()
+        self.log.info('got spectrum {} ({})'.format(tID,status))
+        if s.isSaturated:
+            self.log.warning('spectrum {} is saturated'.format(tID))
+        return s
+        
     def get_spectrum(self):
         """get the spectrum associated with the last acquisition"""
         if self.status == 'disconnected':
@@ -634,11 +643,7 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         if len(self._task_id) > 0:
             tID = self._task_id[0]
             if tID in self._spectra:
-                s = self._spectra[tID]
-                del self._spectra[tID]
-                self._task_id.popleft()
-                self.log.info('got spectrum {} (a)'.format(tID))
-                return s
+                return self._get_spectrum(tID,'a')
         if self._busy.locked():
             self.log.debug('busy, waiting until a spectrum is available')
             self._busy.acquire()
@@ -652,11 +657,7 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
                     break
             else:
                 raise RuntimeError('Waited 5s for spectrum {} but did not get it'.format(tID))
-        s = self._spectra[tID]
-        del self._spectra[tID]
-        self._task_id.popleft()
-        self.log.info('got spectrum {} (w)'.format(tID))
-        return s
+        return self._get_spectrum(tID,'w')
 
 class PiccoloSpectrometers(PiccoloBaseComponent):
     """manage the spectrometers"""

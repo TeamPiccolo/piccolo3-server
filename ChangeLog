@@ -1,4 +1,7 @@
 2019-12-19 Magnus Hagdorn
+ * piccolo3/server/PiccoloSpectrometer.py: warn about saturated spectra
+
+2019-12-19 Magnus Hagdorn
  * piccolo3/server/PiccoloSpectrometer.py: add property to check whether a
    it is a dummy instrument; use property to access spectrometer; query
    seabreeze device to figure out max intensity (fixes #5)
