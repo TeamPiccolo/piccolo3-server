@@ -344,9 +344,9 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                             continue
                         else:
                             break
-                    if max_pixel > 20000:
-                        times.append(integration_time)
-                        max_pixels.append(max_pixel)
+
+                    times.append(integration_time)
+                    max_pixels.append(max_pixel)
 
                     auto_fit = self._fit_autointegration(times,max_pixels,target_intensity)
                     if auto_fit is None:

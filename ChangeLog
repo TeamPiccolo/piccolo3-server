@@ -1,4 +1,8 @@
 2019-12-19 Magnus Hagdorn
+ * piccolo3/server/PiccoloSpectrometer.py: don't worry about low intensities
+   when autointegrating
+
+2019-12-19 Magnus Hagdorn
  * piccolo3/server/PiccoloSpectrometer.py: warn about saturated spectra
 
 2019-12-19 Magnus Hagdorn
