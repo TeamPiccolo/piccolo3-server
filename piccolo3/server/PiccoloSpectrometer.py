@@ -78,6 +78,8 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
             self._currentIntegrationTime[c] = None
             self._auto[c] = None
 
+        self._haveTEC = None
+            
         self._meta = None
             
         self._maxIntegrationTime = None
@@ -149,19 +151,30 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         return self._channels
 
     @property
+    def haveTEC(self):
+        if self._haveTEC is None:
+            if self.is_dummy:
+                self._haveTEC = False
+                self.log.debug('dummy spectrometers have no TEC')
+            else:
+                self._haveTEC = 'thermo_electric' in self.spec.features
+        return self._haveTEC
+
+    @property
+    def currentTemperature(self):
+        if self.haveTEC:
+            return self.spec.f.thermo_electric.read_temperature_degrees_celsius()
+    
+    @property
     def meta(self):
         if self._meta is None:
             if self.is_dummy:
                 self._meta = {
                     'SerialNumber': self.name,
                     'WavelengthCalibrationCoefficients': [0,1,0,0],
-                    'IntegrationTimeUnits': 'milliseconds',
                     'DarkPixels': [],
                     'NonlinearityCorrectionCoefficients': [0,1,0.0],
                     'SaturationLevel' : 200000,
-                    'TemperatureEnabled': False,
-                    'Temperature': None,
-                    'TemperatureUnits': 'degrees Celcius'
                 }
             else:
                 # fit a polynomial to the wavelengths
@@ -170,13 +183,14 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                 self._meta = {
                     'SerialNumber': self.spec.serial_number,
                     'WavelengthCalibrationCoefficients': list(coeff[::-1]),
-                    'IntegrationTimeUnits': 'milliseconds',
                     'DarkPixels': list(self.spec.f.spectrometer.get_electric_dark_pixel_indices()),
                     'NonlinearityCorrectionCoefficients': list(self.spec._nc.coeffs[::-1]),
                     'SaturationLevel' : self.spec.max_intensity,
-                    'TemperatureEnabled': False,
-                    'TemperatureUnits': 'degrees Celcius'
                 }
+            self._meta['IntegrationTimeUnits'] = 'milliseconds'
+            self._meta['TemperatureEnabled'] = False
+            self._meta['Temperature'] = None
+            self._meta['TemperatureUnits'] = 'degrees Celcius'
         return self._meta
     
     
@@ -239,6 +253,10 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
     def process_task(self,task):
         if task[0] == 'connect':
             self.connect()
+        elif task[0] == 'haveTEC':
+            self.results.put(self.haveTEC)
+        elif task[0] == 'currentTemp':
+            self.results.put(self.currentTemperature)
         elif task[0] == 'current':
             result = 'ok'
             try:
@@ -294,7 +312,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                     return
             else:
                 pixels = self._get_spectrum(self.get_currentIntegrationTime(channel))
-                spectrum['Temperature'] = self.spec.tec_get_temperature_C()
+                spectrum['Temperature'] = self.currentTemperature
                 
             spectrum.update(self.meta)
             spectrum['IntegrationTime'] = self.get_currentIntegrationTime(channel)
@@ -471,6 +489,9 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         self._minIntegrationTime = -1
         self._minIntegrationTimeChanged = None
 
+        # TEC feature
+        self._haveTEC = None
+                
         # the spectrum
         self._task_id = deque()
         self._spectra = {}
@@ -533,7 +554,25 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
             else:
                 self.log.warning('unknown spec {}={}'.format(s,t))
                 continue
-        
+
+    @property
+    def haveTEC(self):
+        if self._haveTEC is None:
+            self.check_idle()
+            self._tQ.put(('haveTEC',None))
+            self._haveTEC = self._rQ.get()
+        return self._haveTEC
+    @piccoloGET
+    def get_haveTEC(self):
+        return self.haveTEC        
+    @piccoloGET
+    def get_current_temperature(self):
+        if not self.haveTEC:
+            raise RuntimeError('device has not TEC')
+        self.check_idle()
+        self._tQ.put(('currentTemp',))
+        return self._rQ.get()    
+            
     @piccoloGET(parse_path=True)
     def get_current_time(self,channel):
         if channel not in self._channels:

@@ -1,4 +1,8 @@
 2019-12-20 Magnus Hagdorn
+ * piccolo3/server/PiccoloSpectrometer.py: add functionality to check if
+   spectrometer has TEC; add method to get current temperature
+
+2019-12-20 Magnus Hagdorn
  * piccolo3/server/PiccoloWorkerThreads.py: fix name
 
 2019-12-19 Magnus Hagdorn
