@@ -257,6 +257,25 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
             self.results.put(self.haveTEC)
         elif task[0] == 'currentTemp':
             self.results.put(self.currentTemperature)
+        elif task[0] == 'enableTEC':
+            result = 'ok'
+            try:
+                self.spec.f.thermo_electric.enable_tec(task[1])
+                if task[1]:
+                    self.log.info('TEC enabled')
+                else:
+                    self.log.info('TEC disenabled')
+            except Exception as e:
+                result = str(e)
+            self.results.put(result)
+        elif task[0] == 'targetTemp':
+            result = 'ok'
+            try:
+                self.spec.f.thermo_electric.set_temperature_setpoint_degrees_celsius(task[1])
+                self.log.info('setting target temperature to {} degC'.format(task[1]))
+            except Exception as e:
+                result = str(e)
+            self.results.put(result)
         elif task[0] == 'current':
             result = 'ok'
             try:
@@ -491,6 +510,10 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
 
         # TEC feature
         self._haveTEC = None
+        self._TECenabled = None
+        self._TECenabledChanged = None
+        self._targetTemperature = None
+        self._targetTemperatureChanged = None
                 
         # the spectrum
         self._task_id = deque()
@@ -572,7 +595,59 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         self.check_idle()
         self._tQ.put(('currentTemp',))
         return self._rQ.get()    
-            
+
+    @property
+    def TECenabled(self):
+        if not self.haveTEC:
+            raise RuntimeError('device has not TEC')
+        return self._TECenabled
+    @TECenabled.setter
+    def TECenabled(self,state):
+        if state is not self._TECenabled:
+            self.check_idle()
+            self._tQ.put(('enableTEC',state))
+            result = self._rQ.get()
+            if result != 'ok':
+                raise RuntimeError(result)
+            self._TECenabled = state
+            if self._TECenabledChanged is not None:
+                self._TECenabledChanged()
+    @piccoloGET
+    def get_TECenabled(self):
+        return self.TECenabled
+    @piccoloPUT
+    def set_TECenabled(self,state):
+        self.TECenabled = state
+    @piccoloChanged
+    def callback_TECenabled(self,cb):
+        self._TECenabledChanged = cb
+
+    @property
+    def target_temperature(self):
+        if not self.haveTEC:
+            raise RuntimeError('device has not TEC')
+        return self._targetTemperature
+    @target_temperature.setter
+    def target_temperature(self,t):
+        if self._targetTemperature is None or abs(self._targetTemperature-t)>1e-5:
+            self.check_idle()
+            self._tQ.put(('targetTemp',t))
+            result = self._rQ.get()
+            if result != 'ok':
+                raise RuntimeError(result)
+            self._targetTemperature = t
+            if self._targetTemperatureChanged is not None:
+                self._targetTemperatureChanged()
+    @piccoloGET
+    def get_target_temperature(self):
+        return self.target_temperature
+    @piccoloPUT
+    def set_target_temperature(self,t):
+        self.target_temperature = t
+    @piccoloChanged
+    def callback_target_temperature(self,cb):
+        self._targetTemperatureChanged = cb
+    
     @piccoloGET(parse_path=True)
     def get_current_time(self,channel):
         if channel not in self._channels:
@@ -720,6 +795,9 @@ class PiccoloSpectrometers(PiccoloBaseComponent):
                         if 'wavelengthCalibrationCoefficientsPiccolo' in spectrometer_cfg[sn]['calibration'][c]:
                             calibration[c] = spectrometer_cfg[sn]['calibration'][c]['wavelengthCalibrationCoefficientsPiccolo']
                 self.spectrometers[sname] = PiccoloSpectrometer(sn,channels,calibration)
+                if self.spectrometers[sname].haveTEC:
+                    self.spectrometers[sname].TECenabled = spectrometer_cfg[sn]['fan']
+                    self.spectrometers[sname].target_temperature = spectrometer_cfg[sn]['detectorSetTemperature']
 
         for s in self.spectrometers:
             self.coapResources.add_resource([s],self.spectrometers[s].coapResources)
