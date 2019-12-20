@@ -107,7 +107,7 @@ class PiccoloWorkerThread(PiccoloThread):
             task = self.get_task()
 
             if self.busy.locked():
-                self.results.put('spectrometer {} is busy'.format(self.name))
+                self.results.put('worker {} is busy'.format(self.name))
                 continue
             self.busy.acquire()
                         

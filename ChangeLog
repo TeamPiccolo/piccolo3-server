@@ -1,3 +1,6 @@
+2019-12-20 Magnus Hagdorn
+ * piccolo3/server/PiccoloWorkerThreads.py: fix name
+
 2019-12-19 Magnus Hagdorn
  * piccolo3/server/PiccoloSpectrometer.py: don't worry about low intensities
    when autointegrating
