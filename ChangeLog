@@ -1,3 +1,7 @@
+2019-12-23 Magnus Hagdorn
+ * piccolo3/server/PiccoloSpectrometer.py: use previous value for current
+   temperature when the spectrometer is busy
+
 2019-12-20 Magnus Hagdorn
  * piccolo3/server/PiccoloSpectrometer.py: add methods to set/get state of TEC
    and set/get target detector temperature

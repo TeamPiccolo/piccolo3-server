@@ -512,6 +512,7 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         self._haveTEC = None
         self._TECenabled = None
         self._TECenabledChanged = None
+        self._currentTemperature = None
         self._targetTemperature = None
         self._targetTemperatureChanged = None
                 
@@ -592,9 +593,15 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
     def get_current_temperature(self):
         if not self.haveTEC:
             raise RuntimeError('device has not TEC')
-        self.check_idle()
-        self._tQ.put(('currentTemp',))
-        return self._rQ.get()    
+        try:
+            self.check_idle()
+            self._tQ.put(('currentTemp',))
+            t = self._rQ.get()
+            self._currentTemperature = t
+        except Exception as e:
+            self.log.warn(str(e))
+            t = self._currentTemperature
+        return t
 
     @property
     def TECenabled(self):
