@@ -60,7 +60,7 @@ class PiccoloRunDir(PiccoloNamedComponent):
         spectra = []
         for s in glob.glob(self.full_path(self._pattern)):
             spectra.append(os.path.basename(s))
-        spectra.sort()
+        spectra.sort(reverse=True)
         return spectra
     
     def get_next_batch(self):

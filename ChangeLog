@@ -1,3 +1,6 @@
+2020-01-16 Magnus Hagdorn
+ * piccolo3/server/PiccoloDataDir.py: reverse order of spectrum files
+
 2019-12-23 Magnus Hagdorn
  * piccolo3/server/PiccoloSpectrometer.py: use previous value for current
    temperature when the spectrometer is busy
