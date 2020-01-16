@@ -256,6 +256,7 @@ class PiccoloScheduler(PiccoloBaseComponent):
         job = self.get_job(jid)
         if job is not None and job.suspend():
             self.session.commit()
+            self.log.info('suspended schedule {}'.format(jid))
             if self._jobs_changed is not None:
                 self._jobs_changed()
         
@@ -264,6 +265,7 @@ class PiccoloScheduler(PiccoloBaseComponent):
         job = self.get_job(jid)
         if job is not None and job.unsuspend():
             self.session.commit()
+            self.log.info('unsuspended schedule {}'.format(jid))
             if self._jobs_changed is not None:
                 self._jobs_changed()
                 
@@ -272,6 +274,7 @@ class PiccoloScheduler(PiccoloBaseComponent):
         job = self.get_job(jid)
         if job is not None and job.delete():
             self.session.commit()
+            self.log.info('deleted schedule {}'.format(jid))
             if self._jobs_changed is not None:
                 self._jobs_changed()
                 
@@ -321,7 +324,12 @@ class PiccoloScheduler(PiccoloBaseComponent):
                                       end_time=end_time)
         self.session.add(new_job)
         self.session.commit()
-        self.log.info('scheduled job {}'.format(new_job.id))
+
+        lstring = 'scheduled job {}: running {}{} at {}'.format(new_job.id,job[0],str(job[1]),str(start_time))
+        if end_time is not None:
+            lstring += ' every {} until {}'.format(interval,str(end_time))
+        
+        self.log.info(lstring)
         if self._jobs_changed is not None:
             self._jobs_changed()
         return new_job
