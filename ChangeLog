@@ -1,3 +1,7 @@
+2020-02-03 Magnus Hagdorn
+ * pdata/piccolo.config: use dummy spectrometers
+ * piccolo3/server/PiccoloSpectrometer.py: fix tec stuff when no tec present
+
 2020-01-16 Magnus Hagdorn
  * piccolo3/server/PiccoloScheduler.py: improve logging when scheduling tasks
 

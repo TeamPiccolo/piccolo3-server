@@ -606,11 +606,11 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
     @property
     def TECenabled(self):
         if not self.haveTEC:
-            raise RuntimeError('device has not TEC')
+            return False
         return self._TECenabled
     @TECenabled.setter
     def TECenabled(self,state):
-        if state is not self._TECenabled:
+        if self.haveTEC and state is not self._TECenabled:
             self.check_idle()
             self._tQ.put(('enableTEC',state))
             result = self._rQ.get()
@@ -631,8 +631,6 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
 
     @property
     def target_temperature(self):
-        if not self.haveTEC:
-            raise RuntimeError('device has not TEC')
         return self._targetTemperature
     @target_temperature.setter
     def target_temperature(self,t):
