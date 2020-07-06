@@ -41,6 +41,7 @@ setup(
         'console_scripts': [
             'piccolo3-server = piccolo3.pserver:main',
             'piccolo3-reboot = piccolo3.reboot:main',
+            'piccolo3-list-spec = piccolo3.listspec:main'
         ],
     },
 

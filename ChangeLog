@@ -1,4 +1,8 @@
 2020-07-06 Magnus Hagdorn
+ * piccolo3/listspec.py: new program to list attached spectrometers
+ * setup.py: install new program
+
+2020-07-06 Magnus Hagdorn
  * piccolo3/server/PiccoloSpectrometer.py: handle spectrometers without TEC
 
 2020-02-03 Magnus Hagdorn
