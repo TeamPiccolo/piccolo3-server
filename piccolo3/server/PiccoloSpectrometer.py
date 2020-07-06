@@ -157,7 +157,9 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                 self._haveTEC = False
                 self.log.debug('dummy spectrometers have no TEC')
             else:
-                self._haveTEC = 'thermo_electric' in self.spec.features
+                self._haveTEC = False
+                if 'thermo_electric' in self.spec.features and len(self.spec.features['thermo_electric']) > 0:
+                    self._haveTEC = True
         return self._haveTEC
 
     @property
