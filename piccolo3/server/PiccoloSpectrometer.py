@@ -23,7 +23,7 @@
 __all__ = ['PiccoloSpectrometers']
 
 import asyncio
-from piccolo3.common import PiccoloSpectrum
+from piccolo3.common import PiccoloSpectrum, PiccoloSpectrometerStatus
 from .PiccoloComponent import PiccoloBaseComponent, PiccoloNamedComponent, piccoloGET, piccoloPUT, piccoloChanged
 from .PiccoloWorkerThreads import PiccoloWorkerThread
 import threading
@@ -86,7 +86,8 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         self._minIntegrationTime = None
 
         self._spec = None
-        self.info.put(('status','disconnected'))
+        self._status = None
+        self.status = PiccoloSpectrometerStatus.DISCONNECTED
 
         self.minIntegrationTime = 0
         self.maxIntegrationTime = 10000
@@ -94,14 +95,26 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
             self.set_currentIntegrationTime(c,self.minIntegrationTime)
             self.set_auto(c,'n')
 
+    @property
+    def status(self):
+        return self._status
+    @status.setter
+    def status(self,s):
+        assert isinstance(s,PiccoloSpectrometerStatus)
+        self._status = s
+        self.info.put(('status',s))
+            
     def connect(self):
-        if self._spec is None:
+        if self.status != PiccoloSpectrometerStatus.DISCONNECTED:
+            self.log.warning('already connected')
+        else:
             if self.serial.startswith('dummy_'):
                 self.log.info('using dummy spectrometer %s'%self.serial)
                 self._dummy_spectra = True
                 self._spec = 'dummy'
             else:
                 self.log.info('trying to connect to spectrometer %s'%self.serial)
+                self.status = PiccoloSpectrometerStatus.CONNECTING
 
                 next = time.time()
                 while True:
@@ -113,30 +126,62 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                         if now>next:
                             self.log.warning('failed to open spectrometer %s'%self.serial)
                             next = now+5
-                    time.sleep(1)
+                    # see if we get shutdown signal
+                    if self.get_task(timeout=1) == 'shutdown':
+                        # reinjecting shutdown
+                        self.tasks.put(None)
+                        return
+
+                self.log.info('opening device')
+                self._spec.open()
+
                 self._meta = None
-                self.log.info('connected to spectrometer %s'%self.serial)
-            self.info.put(('status','idle'))
+            self.log.info('connected to spectrometer %s'%self.serial)
+            self.status = PiccoloSpectrometerStatus.IDLE
             self.minIntegrationTime = 0
+
+    def disconnect(self):
+        if self.status < PiccoloSpectrometerStatus.IDLE:
+            self.log.warning('spectrometer is not connected')
+        else:
+            self.log.info('disconnecting spectrometer {}'.format(self.serial))
+            if not self.is_dummy:
+                try:
+                    self.spec.close()
+                except Exception as e:
+                    self.log.error(e)
+            self._spec = None
+            self.status = PiccoloSpectrometerStatus.DISCONNECTED
             
     @property
     def is_dummy(self):
-        if self._spec is None:
-            self.connect()
+        if self.status < PiccoloSpectrometerStatus.IDLE:
+            self.log.warning('spectrometer not ready')
+            return True
         return self._spec == 'dummy'
     
     @property
     def spec(self):
-        if not self.is_dummy:
-            if not self._spec._dev.is_open:
-                self.log.info('opening device')
-                self._spec.open()
+        self.check_ready()
         return self._spec
+
+    def check_ok(self):
+        if self.status>PiccoloSpectrometerStatus.CONNECTING and not self.is_dummy and not self._spec._dev.is_open:
+            self.status = PiccoloSpectrometerStatus.DISCONNECTED
+            self._spec = None
+            self.log.warning('spectrometer {} disappeared'.format(self.serial))
+            return False
+        else:
+            return True
+
+    def check_ready(self):
+        if not self.check_ok():
+            raise RuntimeError('spectrometer {} disappeared'.format(self.serial))
+        if self.status < PiccoloSpectrometerStatus.IDLE:
+            raise RuntimeError('spectrometer {} not ready'.format(self.serial))
         
-            
     def stop(self):
-        if not self.is_dummy:
-            self.spec.close()
+        self.disconnect()
 
     @property
     def serial(self):
@@ -255,6 +300,8 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
     def process_task(self,task):
         if task[0] == 'connect':
             self.connect()
+        elif task[0] == 'disconnect':
+            self.disconnect()
         elif task[0] == 'haveTEC':
             self.results.put(self.haveTEC)
         elif task[0] == 'currentTemp':
@@ -302,121 +349,138 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         elif task[0] == 'start_acquisition':
             channel = task[1]
             if channel not in self.channels:
-                self.result.put('channel {} is unknown'.format(channel))
+                self.results.put('channel {} is unknown'.format(channel))
+                return
+            try:
+                self.check_ready()
+            except Exception as e:
+                self.results.put(str(e))
                 return
             dark = task[2]
             task_id = task[3]
             self.results.put('ok')
-
-            if not self.is_dummy:
-                self.info.put(('status','busy'))
+            self.status = PiccoloSpectrometerStatus.RECORDING
+            try:
+                self._acquire_spectrum(channel,dark,task_id)
+            except Exception as e:
+                self.log.error('during acquisition: {}'.format(e))
+            self.status = PiccoloSpectrometerStatus.IDLE
             
-            self.log.info("acquisition {}: channel {}, integration time {}".format(str(task_id),channel,self.get_currentIntegrationTime(channel)))
-            # create new spectrum instance
-            spectrum = PiccoloSpectrum()
-            if dark:
-                spectrum.setDark()
-            else:
-                spectrum.setLight()
-            spectrum.setDirection(channel)
-            
-            # record data
-
-            if self.is_dummy:
-                if self.dummy_spectra:
-                    # If spectrometer is None, then simulate a spectrometer, for
-                    # testing purposes.
-                    time.sleep(self.get_currentIntegrationTime(channel)/1000.)
-                    pixels = list(range(100))
-                else:
-                    self.info.put(('spectrum',(task_id,None)))
-                    return
-            else:
-                pixels = self._get_spectrum(self.get_currentIntegrationTime(channel))
-                spectrum['Temperature'] = self.currentTemperature
-                
-            spectrum.update(self.meta)
-            spectrum['IntegrationTime'] = self.get_currentIntegrationTime(channel)
-            if channel in self._calibration:
-                spectrum['WavelengthCalibrationCoefficientsPiccolo'] = self._calibration[channel]
-            spectrum.pixels = pixels
-
-            self.info.put(('spectrum',(task_id,spectrum)))
-            if not self.is_dummy:
-                self.info.put(('status','idle'))
         elif task[0] == 'autointegration':
             channel = task[1]
             if channel not in self.channels:
-                self.result.put('channel {} is unknown'.format(channel))
+                self.results.put('channel {} is unknown'.format(channel))
+                return
+            try:
+                self.check_ready()
+            except Exception as e:
+                self.results.put(str(e))
                 return
             target = task[2]
-            target_tolerance = 10.
-            num_attempts = 5
             self.results.put('ok')
-
-            self.log.info("start autointegration: channel {}, target {}%, current integration time {}".format(channel,target, self.get_currentIntegrationTime(channel)))
 
             if self.is_dummy:
                 self.log.warning('no spectrometer')
                 self.set_auto(channel,'f')
                 return
             
-            self.info.put(('status','auto'))
-                
-            delta = 100.
-            target_intensity = target/100.*self.meta['SaturationLevel']
-            for i in range(num_attempts):
-                self.log.info('autointegration attempt %d/%d'%(i,num_attempts))
-                times = []
-                max_pixels = []
-                success = False
-                auto_time = None
-                test_times =  list(numpy.logspace(numpy.log10(self.minIntegrationTime),numpy.log10(self.maxIntegrationTime),20))
-                # first try current integration time
-                test_times.insert(0,self.get_currentIntegrationTime(channel))
-                
-                for i in range(len(test_times)):
-                    integration_time = test_times[i]
-                    max_pixel = self._get_max(integration_time)
-                    if max_pixel > 0.9*self.meta['SaturationLevel']:
-                        if i==0:
-                            continue
-                        else:
-                            break
-
-                    times.append(integration_time)
-                    max_pixels.append(max_pixel)
-
-                    auto_fit = self._fit_autointegration(times,max_pixels,target_intensity)
-                    if auto_fit is None:
-                        continue
-
-                    auto_time, max_pixel, percentage = auto_fit
-
-                    if abs(percentage)<target_tolerance or abs(auto_time-self.maxIntegrationTime) < 1e-6:
-                        # success
-                        self.set_auto(channel,'s')
-                        self.set_currentIntegrationTime(channel,auto_time,reset_auto = False)
-                        success = True
-                        break
-                        
-                    if max_pixel < 0.9*self.meta['SaturationLevel']:
-                        # never mind, use results for fitting line
-                        times.append(auto_time)
-                        max_pixels.append(max_pixel)
-
-                if success:
-                    break
-            else:
-                self.log.error('failed to autointegrate')
+            self.status = PiccoloSpectrometerStatus.AUTOINTEGRATING
+            try:
+                self._autointegrate(channel,target)
+            except  Exception as e:
                 self.set_auto(channel,'f')
-            
-            self.log.info("finished autointegration: channel {}, current integration time {}".format(channel,self.get_currentIntegrationTime(channel)))
-            if not self.is_dummy:
-                self.info.put(('status','idle'))
+                self.log.error('during acquisition: {}'.format(e))
+            self.status = PiccoloSpectrometerStatus.IDLE
         else:
             result = 'unkown task: {}'.format(task)
             self.results.put(result)
+
+    def _autointegrate(self,channel,target,target_tolerance = 10.,num_attempts = 5):
+        self.log.info("start autointegration: channel {}, target {}%, current integration time {}".format(channel,target, self.get_currentIntegrationTime(channel)))
+
+        delta = 100.
+        target_intensity = target/100.*self.meta['SaturationLevel']
+        for i in range(num_attempts):
+            self.log.info('autointegration attempt %d/%d'%(i,num_attempts))
+            times = []
+            max_pixels = []
+            success = False
+            auto_time = None
+            test_times =  list(numpy.logspace(numpy.log10(self.minIntegrationTime),numpy.log10(self.maxIntegrationTime),20))
+            # first try current integration time
+            test_times.insert(0,self.get_currentIntegrationTime(channel))
+
+            for i in range(len(test_times)):
+                integration_time = test_times[i]
+                max_pixel = self._get_max(integration_time)
+                if max_pixel > 0.9*self.meta['SaturationLevel']:
+                    if i==0:
+                        continue
+                    else:
+                        break
+
+                times.append(integration_time)
+                max_pixels.append(max_pixel)
+
+                auto_fit = self._fit_autointegration(times,max_pixels,target_intensity)
+                if auto_fit is None:
+                    continue
+
+                auto_time, max_pixel, percentage = auto_fit
+
+                if abs(percentage)<target_tolerance or abs(auto_time-self.maxIntegrationTime) < 1e-6:
+                    # success
+                    self.set_auto(channel,'s')
+                    self.set_currentIntegrationTime(channel,auto_time,reset_auto = False)
+                    success = True
+                    break
+
+                if max_pixel < 0.9*self.meta['SaturationLevel']:
+                    # never mind, use results for fitting line
+                    times.append(auto_time)
+                    max_pixels.append(max_pixel)
+
+            if success:
+                break
+        else:
+            self.log.error('failed to autointegrate')
+            self.set_auto(channel,'f')
+
+        self.log.info("finished autointegration: channel {}, current integration time {}".format(channel,self.get_currentIntegrationTime(channel)))
+
+    def _acquire_spectrum(self,channel,dark,task_id):
+        self.log.info("acquisition {}: channel {}, integration time {}".format(str(task_id),channel,self.get_currentIntegrationTime(channel)))
+        
+        # create new spectrum instance
+        spectrum = PiccoloSpectrum()
+        if dark:
+            spectrum.setDark()
+        else:
+            spectrum.setLight()
+        spectrum.setDirection(channel)
+
+        # record data
+
+        if self.is_dummy:
+            if self.dummy_spectra:
+                # If spectrometer is None, then simulate a spectrometer, for
+                # testing purposes.
+                time.sleep(self.get_currentIntegrationTime(channel)/1000.)
+                pixels = list(range(100))
+            else:
+                self.info.put(('spectrum',(task_id,None)))
+                return
+        else:
+            pixels = self._get_spectrum(self.get_currentIntegrationTime(channel))
+            spectrum['Temperature'] = self.currentTemperature
+
+        spectrum.update(self.meta)
+        spectrum['IntegrationTime'] = self.get_currentIntegrationTime(channel)
+        if channel in self._calibration:
+            spectrum['WavelengthCalibrationCoefficientsPiccolo'] = self._calibration[channel]
+        spectrum.pixels = pixels
+
+        self.info.put(('spectrum',(task_id,spectrum)))
             
     def _get_spectrum(self,integration_time):
         integration_time = max(integration_time,self.minIntegrationTime)
@@ -493,7 +557,7 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         loop = asyncio.get_event_loop()        
         self._iQ = janus.Queue(loop=loop) # info queue
 
-        self._status = 'idle'
+        self._status = PiccoloSpectrometerStatus.NO_WORKER
         self._status_changed = None
         
         self._channels = channels
@@ -533,12 +597,18 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
                                                        self._tQ, self._rQ,
                                                        self._iQ.sync_q)
         self._spectrometer.start()
-        self._tQ.put(('connect',None))
+        self.connect()
+        self.log.info('started')
 
     def stop(self):
         # send poison pill to worker
         self.log.info('shutting down')
         self._tQ.put(None)
+
+    def connect(self):
+        self._tQ.put(('connect',None))        
+    def disconnect(self):
+        self._tQ.put(('disconnect',None))        
         
     async def _update_info(self):
         """thread that checks if info needs to be updated"""
@@ -576,6 +646,7 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
             elif s== 'status':
                 self._status = t
                 if self._status_changed is not None:
+
                     self._status_changed()
             else:
                 self.log.warning('unknown spec {}={}'.format(s,t))
@@ -584,7 +655,7 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
     @property
     def haveTEC(self):
         if self._haveTEC is None:
-            self.check_idle()
+            #self.check_idle()
             self._tQ.put(('haveTEC',None))
             self._haveTEC = self._rQ.get()
         return self._haveTEC
@@ -710,6 +781,8 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
 
     @property
     def status(self):
+        if not self._spectrometer.is_alive():
+            self._status = PiccoloSpectrometerStatus.NO_WORKER        
         return self._status
     @piccoloGET
     def get_status(self):
@@ -722,8 +795,8 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
     def callback_status(self,cb):
         self._status_changed = cb
     def check_idle(self):
-        if self.status != 'idle':
-            raise Warning('spectrometer %s is %s'%(self.name,self.status))
+        if self.status != PiccoloSpectrometerStatus.IDLE:
+            raise Warning('status of spectrometer %s is %s'%(self.name,self.status))
 
     def autointegrate(self,channel,target=80.):
         """start autointegration"""
@@ -765,6 +838,8 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
             tID = self._task_id[0]
             if tID in self._spectra:
                 return self._get_spectrum(tID,'a')
+        if self.status == PiccoloSpectrometerStatus.DISCONNECTED:
+            raise RuntimeError('spectrometer {} disconnected'.format(self.name))
         if self._busy.locked():
             self.log.debug('busy, waiting until a spectrum is available')
             self._busy.acquire()
@@ -842,15 +917,68 @@ if __name__ == '__main__':
     from pprint import pprint
     piccoloLogging(debug=True)
 
-    
-    if True:
+
+    if False:
         async def test():
-            spec = PiccoloSpectrometer('QEP00981',['up','down'],{})
+            spec1 = PiccoloSpectrometer('QEP01651',['up','down'],{})
+            spec2 = PiccoloSpectrometer('USB2+H13525',['up','down'],{})
+            print (spec1.status,spec2.status)
+            await asyncio.sleep(1)
+            print (spec1.status,spec2.status)
+            for i in range(2):
+                await asyncio.sleep(1)
+                print ('c',i,spec1.status,spec2.status)
+
+            spec1.set_current_time('up',2000)
+            spec2.set_current_time('up',2000)
+            #spec1.disconnect()
+            try:
+                spec1.start_acquisition('up')
+            except Exception as e:
+                print(e)
+            try:
+                spec2.start_acquisition('up')
+            except Exception as e:
+                print(e)
+            for i in range(5):
+                await asyncio.sleep(1)
+                print ('r',i,spec1.status,spec2.status)
+            try:
+                s = spec1.get_spectrum().as_dict()
+                pprint(s)
+            except Exception as e:
+                print(e)
+            try:
+                s = spec2.get_spectrum().as_dict()
+                pprint(s)
+            except Exception as e:
+                print(e)
+                
+            #spec1.disconnect()
+            #spec2.disconnect()
+            for i in range(20):
+                await asyncio.sleep(1)
+                print ('d',i,spec1.status,spec2.status)
+            spec1.connect()
+            spec2.connect()
+            for i in range(5):
+                await asyncio.sleep(1)
+                print ('c',i,spec1.status,spec2.status)
+            spec1.stop()
+            spec2.stop()
+            await asyncio.sleep(1)
+            print (spec1.status,spec2.status)
+        asyncio.run(test())
+    elif True:
+        async def test():
+            spec = PiccoloSpectrometer('QEP01651',['up','down'],{}) # QEP00981
+            await asyncio.sleep(1)
             print ('start',spec.get_current_time('up'))
+            print (spec.status)
             spec.set_max_time(5000)
             spec.autointegrate('up')
 
-            while spec.status() == 'busy':
+            while spec.status > PiccoloSpectrometerStatus.IDLE:
                 await asyncio.sleep(1)
                 print (spec.status())
             print ('done',spec.get_current_time('up'))
