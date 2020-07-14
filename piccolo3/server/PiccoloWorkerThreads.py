@@ -100,11 +100,17 @@ class PiccoloWorkerThread(PiccoloThread):
 
     def stop(self):
         pass
+
+    def check_ok(self):
+        pass
     
     def run(self):
         while True:
             # wait for a new task from the task queue
-            task = self.get_task()
+            task = self.get_task(timeout=1)
+            if task is None:
+                self.check_ok()
+                continue
 
             if self.busy.locked():
                 self.results.put('worker {} is busy'.format(self.name))
