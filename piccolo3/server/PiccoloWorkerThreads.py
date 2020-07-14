@@ -85,9 +85,9 @@ class PiccoloWorkerThread(PiccoloThread):
         """the info queue"""
         return self._iQ
 
-    def get_task(self,block=True):
+    def get_task(self,block=True, timeout=None):
         try:
-            task = self.tasks.get(block=block)
+            task = self.tasks.get(block=block,timeout=timeout)
         except Empty:
             return
 
