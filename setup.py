@@ -34,7 +34,7 @@ setup(
         'lockfile',
         'sqlalchemy',
         'LinkHeader',
-        'janus',
+        'janus == 0.4.0',
         'seabreeze >= 1.0.0',
     ],
     entry_points={
