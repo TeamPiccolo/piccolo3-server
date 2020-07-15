@@ -24,7 +24,7 @@ __all__ = ['PiccoloControl']
 
 import asyncio
 import janus
-from piccolo3.common import PiccoloSpectraList
+from piccolo3.common import PiccoloSpectraList, PiccoloSpectrometerStatus
 from .PiccoloComponent import PiccoloBaseComponent, piccoloGET, piccoloPUT, piccoloChanged
 from .PiccoloWorkerThreads import PiccoloThread,PiccoloWorkerThread
 from .PiccoloDataDir import PiccoloDataDir
@@ -154,7 +154,7 @@ class PiccoloControlWorker(PiccoloWorkerThread):
 
             # wait for autointegration
             for spec in self.spectrometers:
-                while self.spectrometers[spec].status == 'auto':
+                while self.spectrometers[spec].status == PiccoloSpectrometerStatus.AUTOINTEGRATING:
                     time.sleep(0.1)
                     
             self.shutters[shutter].closeShutter()
