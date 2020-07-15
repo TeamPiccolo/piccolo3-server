@@ -260,6 +260,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         return self._minIntegrationTime
     @minIntegrationTime.setter
     def minIntegrationTime(self,t):
+        t = int(t)
         if not self.is_dummy:
             t = max(self.spec.minimum_integration_time_micros/1000.,t)
         t = int(t)
