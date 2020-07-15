@@ -977,13 +977,14 @@ if __name__ == '__main__':
             print (spec.status)
             spec.set_max_time(5000)
             spec.autointegrate('up')
+            await asyncio.sleep(1)
 
             while spec.status > PiccoloSpectrometerStatus.IDLE:
                 await asyncio.sleep(1)
-                print (spec.status())
+                print (spec.status)
             print ('done',spec.get_current_time('up'))
             spec.stop()
-            time.sleep(1)
+            await asyncio.sleep(1)
 
         from .PiccoloHardware import piccoloShutters
         for i in range(2):
