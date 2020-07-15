@@ -303,6 +303,8 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
             self.connect()
         elif task[0] == 'disconnect':
             self.disconnect()
+        elif task[0] == 'status':
+            self.results.put(self.status)
         elif task[0] == 'haveTEC':
             self.results.put(self.haveTEC)
         elif task[0] == 'currentTemp':
@@ -599,6 +601,10 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
                                                        self._iQ.sync_q)
         self._spectrometer.start()
         self.connect()
+        # get initial status
+        self._tQ.put(('status',None))
+        result = self._rQ.get()
+        self._status = result
         self.log.info('started')
 
     def stop(self):
@@ -797,7 +803,7 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         self._status_changed = cb
     def check_idle(self):
         if self.status != PiccoloSpectrometerStatus.IDLE:
-            raise Warning('status of spectrometer %s is %s'%(self.name,self.status))
+            raise Warning('status of spectrometer {} is {}'.format(self.name,self.status.name))
 
     def autointegrate(self,channel,target=80.):
         """start autointegration"""
