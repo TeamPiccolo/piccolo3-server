@@ -86,8 +86,8 @@ class PiccoloControlWorker(PiccoloWorkerThread):
     def stop(self):
         self.spectra.put(None)
         
-    def get_task(self,block=True):
-        task = super().get_task(block=block)
+    def get_task(self,block=True, timeout=None):
+        task = super().get_task(block=block, timeout=timeout)
 
         if task == 'abort':
             if self.busy.locked():
