@@ -896,7 +896,10 @@ class PiccoloSpectrometers(PiccoloBaseComponent):
         self._channels = channels
         
         self._spectrometers = {}
-        # TODO loop over spectrometers
+
+        self.log.info('attached spectrometers:')
+        for s in sb.list_devices():
+            self.log.info('{0.model:15}\t{0.serial_number}'.format(s))        
 
         if len(self._spectrometers) == 0:
             for sn in spectrometer_cfg:
