@@ -588,6 +588,7 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
 
         # TEC feature
         self._haveTEC = None
+        self._TEClocalchange = False
         self._TECenabled = None
         self._TECenabledChanged = None
         self._currentTemperature = None
@@ -661,6 +662,12 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
                 self._spectra[t[0]] = t[1]
             elif s== 'status':
                 self._status = t
+                if self._TEClocalchange and t == PiccoloSpectrometerStatus.IDLE:
+                    # instrument is ready and there are pending TEC settings
+                    self.log.debug('update TEC settings, TEC present {}'.format(self.haveTEC))
+                    self.target_temperature = self._targetTemperature
+                    self.TECenabled = self._TECenabled
+                    self._TEClocalchange = False
                 if self._status_changed is not None:
 
                     self._status_changed()
@@ -699,12 +706,14 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         return self._TECenabled
     @TECenabled.setter
     def TECenabled(self,state):
-        if self.haveTEC and state is not self._TECenabled:
-            self.check_idle()
-            self._tQ.put(('enableTEC',state))
-            result = self._rQ.get()
-            if result != 'ok':
-                raise RuntimeError(result)
+        if self._TEClocalchange or state is not self._TECenabled:
+            if self.status == PiccoloSpectrometerStatus.IDLE:
+                self._tQ.put(('enableTEC',state))
+                result = self._rQ.get()
+                if result != 'ok':
+                    raise RuntimeError(result)
+            else:
+                self._TEClocalchange = True
             self._TECenabled = state
             if self._TECenabledChanged is not None:
                 self._TECenabledChanged()
@@ -723,12 +732,14 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         return self._targetTemperature
     @target_temperature.setter
     def target_temperature(self,t):
-        if self._targetTemperature is None or abs(self._targetTemperature-t)>1e-5:
-            self.check_idle()
-            self._tQ.put(('targetTemp',t))
-            result = self._rQ.get()
-            if result != 'ok':
-                raise RuntimeError(result)
+        if self._TEClocalchange or self._targetTemperature is None or abs(self._targetTemperature-t)>1e-5:
+            if self.status == PiccoloSpectrometerStatus.IDLE:
+                self._tQ.put(('targetTemp',t))
+                result = self._rQ.get()
+                if result != 'ok':
+                    raise RuntimeError(result)
+            else:
+                self._TEClocalchange = True
             self._targetTemperature = t
             if self._targetTemperatureChanged is not None:
                 self._targetTemperatureChanged()
