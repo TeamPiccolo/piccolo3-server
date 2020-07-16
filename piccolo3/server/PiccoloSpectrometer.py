@@ -126,11 +126,18 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                         if now>next:
                             self.log.warning('failed to open spectrometer %s'%self.serial)
                             next = now+5
-                    # see if we get shutdown signal
-                    if self.get_task(timeout=1) == 'shutdown':
-                        # reinjecting shutdown
-                        self.tasks.put(None)
-                        return
+                    # get a task
+                    task = self.get_task(timeout=1)
+                    if task is not None:
+                        if task == 'shutdown':
+                            self.tasks.put(None)
+                            # reinjecting shutdown
+                            return
+                        elif task[0] == 'status':
+                            self.results.put(self.status)
+                        else:
+                            self.tasks.put(task)
+
 
                 self.log.info('opening device')
                 self._spec.open()
