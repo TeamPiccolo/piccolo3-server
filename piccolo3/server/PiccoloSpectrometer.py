@@ -907,9 +907,8 @@ class PiccoloSpectrometers(PiccoloBaseComponent):
                         if 'wavelengthCalibrationCoefficientsPiccolo' in spectrometer_cfg[sn]['calibration'][c]:
                             calibration[c] = spectrometer_cfg[sn]['calibration'][c]['wavelengthCalibrationCoefficientsPiccolo']
                 self.spectrometers[sname] = PiccoloSpectrometer(sn,channels,calibration)
-                if self.spectrometers[sname].haveTEC:
-                    self.spectrometers[sname].TECenabled = spectrometer_cfg[sn]['fan']
-                    self.spectrometers[sname].target_temperature = spectrometer_cfg[sn]['detectorSetTemperature']
+                self.spectrometers[sname].TECenabled = spectrometer_cfg[sn]['fan']
+                self.spectrometers[sname].target_temperature = spectrometer_cfg[sn]['detectorSetTemperature']
 
         for s in self.spectrometers:
             self.coapResources.add_resource([s],self.spectrometers[s].coapResources)
