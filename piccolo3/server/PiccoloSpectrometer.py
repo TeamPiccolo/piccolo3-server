@@ -133,6 +133,11 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                             self.tasks.put(None)
                             # reinjecting shutdown
                             return
+                        elif task[0] == 'disconnect':
+                            self.log.info('disconnecting spectrometer {}'.format(self.serial))
+                            self._spec = None
+                            self.status = PiccoloSpectrometerStatus.DISCONNECTED
+                            return
                         elif task[0] == 'status':
                             self.results.put(self.status)
                         else:
@@ -623,10 +628,18 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         self.log.info('shutting down')
         self._tQ.put(None)
 
+    @piccoloGET
     def connect(self):
-        self._tQ.put(('connect',None))        
+        if self.status>PiccoloSpectrometerStatus.DISCONNECTED:
+            return 'spectrometer is in wrong state to be connected {}'.format(self.status.name)
+        self._tQ.put(('connect',None))
+        return 'ok'
+    @piccoloGET
     def disconnect(self):
+        if self.status == PiccoloSpectrometerStatus.DISCONNECTED:
+            return 'spectrometer is already disconnected'
         self._tQ.put(('disconnect',None))        
+        return 'ok'
         
     async def _update_info(self):
         """thread that checks if info needs to be updated"""
