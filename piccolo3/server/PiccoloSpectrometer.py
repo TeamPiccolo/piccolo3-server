@@ -678,7 +678,10 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
     @property
     def haveTEC(self):
         if self._haveTEC is None:
-            #self.check_idle()
+            try:
+                self.check_idle()
+            except Warning:
+                return None
             self._tQ.put(('haveTEC',None))
             self._haveTEC = self._rQ.get()
         return self._haveTEC
