@@ -105,7 +105,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         self.info.put(('status',s))
             
     def connect(self):
-        if self.status != PiccoloSpectrometerStatus.DISCONNECTED:
+        if self.status > PiccoloSpectrometerStatus.DISCONNECTED:
             self.log.warning('already connected')
         else:
             if self.serial.startswith('dummy_'):
@@ -173,10 +173,11 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         return self._spec
 
     def check_ok(self):
-        if self.status>PiccoloSpectrometerStatus.CONNECTING and not self.is_dummy and not self._spec._dev.is_open:
-            self.status = PiccoloSpectrometerStatus.DISCONNECTED
+        if self.status>PiccoloSpectrometerStatus.DISCONNECTED and not self.is_dummy and not self._spec._dev.is_open:
+            self.status = PiccoloSpectrometerStatus.DROPPED
             self._spec = None
             self.log.warning('spectrometer {} disappeared'.format(self.serial))
+            self.tasks.put(('connect',None))
             return False
         else:
             return True
@@ -862,14 +863,12 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
         
     def get_spectrum(self):
         """get the spectrum associated with the last acquisition"""
-        if self.status == 'disconnected':
+        if self.status < PiccoloSpectrometerStatus.IDLE:
             raise Warning('spectrometer %s is disconnected'%self.name)
         if len(self._task_id) > 0:
             tID = self._task_id[0]
             if tID in self._spectra:
                 return self._get_spectrum(tID,'a')
-        if self.status == PiccoloSpectrometerStatus.DISCONNECTED:
-            raise RuntimeError('spectrometer {} disconnected'.format(self.name))
         if self._busy.locked():
             self.log.debug('busy, waiting until a spectrum is available')
             self._busy.acquire()
