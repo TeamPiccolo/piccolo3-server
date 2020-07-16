@@ -318,22 +318,24 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
             self.results.put(self.currentTemperature)
         elif task[0] == 'enableTEC':
             result = 'ok'
-            try:
-                self.spec.f.thermo_electric.enable_tec(task[1])
-                if task[1]:
-                    self.log.info('TEC enabled')
-                else:
-                    self.log.info('TEC disenabled')
-            except Exception as e:
-                result = str(e)
+            if self.haveTEC:
+                try:
+                    self.spec.f.thermo_electric.enable_tec(task[1])
+                    if task[1]:
+                        self.log.info('TEC enabled')
+                    else:
+                        self.log.info('TEC disenabled')
+                except Exception as e:
+                    result = str(e)
             self.results.put(result)
         elif task[0] == 'targetTemp':
             result = 'ok'
-            try:
-                self.spec.f.thermo_electric.set_temperature_setpoint_degrees_celsius(task[1])
-                self.log.info('setting target temperature to {} degC'.format(task[1]))
-            except Exception as e:
-                result = str(e)
+            if self.haveTEC:
+                try:
+                    self.spec.f.thermo_electric.set_temperature_setpoint_degrees_celsius(task[1])
+                    self.log.info('setting target temperature to {} degC'.format(task[1]))
+                except Exception as e:
+                    result = str(e)
             self.results.put(result)
         elif task[0] == 'current':
             result = 'ok'
