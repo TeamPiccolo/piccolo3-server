@@ -42,6 +42,7 @@ defaultCfgStr = """
   [[__many__]]
     detectorSetTemperature = float(default=-10.0)
     fan = boolean(default=True)
+    power_switch = integer(default=-1) # power switch number, -1 to disable
     min_integration_time = float(default=1000.) # minimum integration time in ms
     max_integration_time = float(default=65535000.) # maximum integration time in ms
     [[[calibration]]]
