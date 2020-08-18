@@ -43,7 +43,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
     tasks in the background and holds on to the results until they are
     picked up."""
 
-    def __init__(self, name, channels, calibration, busy, tasks, results,info,daemon=True):
+    def __init__(self, name, channels, calibration, busy, tasks, results,info, power_switch = -1, power_delay=0,daemon=True):
         """Initialize the worker thread.
 
         Note: calling __init__ does not start the thread, a subsequent call to
@@ -60,6 +60,8 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         :type results: Queue.Queue
         :param info: queue for reporting back info
         :type info: Queue.Queue
+        :param power_switch: power switch number, -1 to disable power switch
+        :param power_delay: delay powering on by power_delay seconds, default 0
         """
         
         super().__init__('spectrometer_worker.{}'.format(name),busy, tasks, results,info,daemon=daemon)
@@ -68,6 +70,10 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         
         # set to true to create dummy spectra
         self._dummy_spectra = False
+
+        # power control
+        self._power_switch = power_switch
+        self._power_delay = power_delay
         
         # the integration times
         self._currentIntegrationTime = {}
@@ -103,7 +109,14 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         assert isinstance(s,PiccoloSpectrometerStatus)
         self._status = s
         self.info.put(('status',s))
-            
+
+    @property
+    def power_switch(self):
+        return self._power_switch
+    @property
+    def power_delay(self):
+        return self._power_delay
+        
     def connect(self):
         if self.status > PiccoloSpectrometerStatus.DISCONNECTED:
             self.log.warning('already connected')
@@ -164,6 +177,30 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                     self.log.error(e)
             self._spec = None
             self.status = PiccoloSpectrometerStatus.DISCONNECTED
+
+    def power_off(self):
+        if self.status == PiccoloSpectrometerStatus.POWERED_OFF:
+            self.log.warning('spectrometer is already powered-off')
+        else:
+            self.disconnect()
+            if self.power_switch>-1:
+                self.log.info('powering off spectrometer {} on switch {}'.format(self.serial,self.power_switch))
+                #FIXME: switch off
+                self.status = PiccoloSpectrometerStatus.POWERED_OFF
+            else:
+                self.log.warning('no power switch for spectrometer {}'.format(self.serial))
+
+    def power_on(self):
+        if self.status != PiccoloSpectrometerStatus.POWERED_OFF:
+            self.log.warning('spectrometer is already powered-on')
+        else:
+            self.log.info('powering on spectrometer {} on switch {}'.format(self.serial,self.power_switch))
+            if self.power_delay > 0:
+                self.log.info('waiting for {} seconds'.format(self.power_delay))
+                time.sleep(self.power_delay)
+            #FIXME: switch on
+            self.status = PiccoloSpectrometerStatus.DISCONNECTED
+        self.connect()
             
     @property
     def is_dummy(self):
@@ -316,6 +353,10 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
             self.connect()
         elif task[0] == 'disconnect':
             self.disconnect()
+        elif task[0] == 'power_on':
+            self.power_on()
+        elif task[0] == 'power_off':
+            self.power_off()
         elif task[0] == 'status':
             self.results.put(self.status)
         elif task[0] == 'haveTEC':
@@ -551,7 +592,7 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
 
     NAME = 'spectrometer'
     
-    def __init__(self,name, channels,calibration):
+    def __init__(self,name, channels,calibration, power_switch = -1, power_delay=0):
         """Initialize a Piccolo Spectrometer object for Piccolo Server.
 
         The spectromter parameter must be the Spectrometer object from the
@@ -562,6 +603,8 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
 
         :param name: a descriptive name for the spectrometer.
         :param channels: a list of channels
+        :param power_switch: power switch number, -1 to disable power switch
+        :param power_delay: delay powering on by power_delay seconds, default 0
         """
 
         super().__init__(name)
@@ -614,7 +657,9 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
                                                        calibration,
                                                        self._busy,
                                                        self._tQ, self._rQ,
-                                                       self._iQ.sync_q)
+                                                       self._iQ.sync_q,
+                                                       power_switch = power_switch,
+                                                       power_delay = power_delay)
         self._spectrometer.start()
         self.connect()
         # get initial status
@@ -640,7 +685,25 @@ class PiccoloSpectrometer(PiccoloNamedComponent):
             return 'spectrometer is already disconnected'
         self._tQ.put(('disconnect',None))        
         return 'ok'
-        
+    @piccoloGET
+    def power_off(self):
+        if self.status == PiccoloSpectrometerStatus.POWERED_OFF:
+            return 'spectrometer is already powered off'
+        self._tQ.put(('power_off',None))
+        return 'ok'
+    @piccoloGET
+    def power_on(self):
+        if self.status>PiccoloSpectrometerStatus.DISCONNECTED:
+            result = 'spectrometer is already running'
+        else:
+            if self.status == PiccoloSpectrometerStatus.POWERED_OFF:
+                result = 'ok'
+            else:
+                result = 'spectrometer is already powered on'
+            self._tQ.put(('power_on',None))        
+        return result
+
+    
     async def _update_info(self):
         """thread that checks if info needs to be updated"""
 
@@ -914,6 +977,7 @@ class PiccoloSpectrometers(PiccoloBaseComponent):
             self.log.info('{0.model:15}\t{0.serial_number}'.format(s))        
 
         if len(self._spectrometers) == 0:
+            i = 0
             for sn in spectrometer_cfg:
                 sname = 'S_'+sn
                 calibration = {}
@@ -921,9 +985,13 @@ class PiccoloSpectrometers(PiccoloBaseComponent):
                     for c in spectrometer_cfg[sn]['calibration']:
                         if 'wavelengthCalibrationCoefficientsPiccolo' in spectrometer_cfg[sn]['calibration'][c]:
                             calibration[c] = spectrometer_cfg[sn]['calibration'][c]['wavelengthCalibrationCoefficientsPiccolo']
-                self.spectrometers[sname] = PiccoloSpectrometer(sn,channels,calibration)
+                self.spectrometers[sname] = PiccoloSpectrometer(sn,channels,calibration,
+                                                                power_switch = spectrometer_cfg[sn]['power_switch'],
+                                                                power_delay = i *10
+                                                                )
                 self.spectrometers[sname].TECenabled = spectrometer_cfg[sn]['fan']
                 self.spectrometers[sname].target_temperature = spectrometer_cfg[sn]['detectorSetTemperature']
+                i += 1
 
         for s in self.spectrometers:
             self.coapResources.add_resource([s],self.spectrometers[s].coapResources)
@@ -941,6 +1009,30 @@ class PiccoloSpectrometers(PiccoloBaseComponent):
     @piccoloGET
     def get_channels(self):
         return self._channels
+
+    def all_spec(self,action):
+        result = []
+        for s in self.spectrometers:
+            r = getattr(self.spectrometers[s],action)()
+            if r != 'ok':
+                result.append('{}: {}'.format(s,r))
+        if len(result)>0:
+            return '|'.join(result)
+        else:
+            return 'ok'
+    
+    @piccoloGET
+    def connect(self):
+        return self.all_spec('connect')
+    @piccoloGET
+    def disconnect(self):
+        return self.all_spec('disconnect')
+    @piccoloGET
+    def power_off(self):
+        return self.all_spec('power_off')
+    @piccoloGET
+    def power_on(self):
+        return self.all_spec('power_on')
     
     # implement methods so object can act as a read-only dictionary
     def keys(self):
