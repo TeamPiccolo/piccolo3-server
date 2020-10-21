@@ -135,6 +135,14 @@ class PiccoloControlWorker(PiccoloWorkerThread):
             self.results.put('ok')
             self.autointegrate(task[1])
             self.update_status('idle')
+        elif task[0] == 'power_off':
+            self.results.put('ok')
+            self.spectrometers.power_off()
+            self.update_status('idle')
+        elif task[0] == 'power_on':
+            self.results.put('ok')
+            self.spectrometers.power_on()
+            self.update_status('idle')
 
     def autointegrate(self,target):
         self.log.debug('autointegrate target={}'.format(target))
@@ -496,6 +504,31 @@ class PiccoloControl(PiccoloBaseComponent):
         result = self._rQ.sync_q.get()
         if result != 'ok':
             raise RuntimeError(result)             
+
+    def _power(self,task):
+        """power on/off spectrometers
+
+        :parm task: can be either on or off
+        """
+
+        job = ('power_{}'.format(task),)
+        if self._busy.locked():
+            raise Warning('piccolo system is busy')
+        self._tQ.sync_q.put(job)
+        result = self._rQ.sync_q.get()
+        if result != 'ok':
+            raise RuntimeError(result)
+
+    @piccoloPUT
+    def power_off(self):
+        """power off spectrometers
+        """
+        self._power('off')
+    @piccoloPUT
+    def power_on(self):
+        """power on spectrometers
+        """
+        self._power('on')
 
     @piccoloGET
     def abort(self):
