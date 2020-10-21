@@ -1,3 +1,7 @@
+2020-10-21 Magnus Hagdorn
+ * piccolo3/server/Piccolo.py: add functionality to switch on/off all 
+   spectrometers
+
 2020-07-06 Magnus Hagdorn
  * piccolo3/listspec.py: new program to list attached spectrometers
  * setup.py: install new program
