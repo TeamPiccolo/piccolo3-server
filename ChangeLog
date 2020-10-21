@@ -1,4 +1,8 @@
 2020-10-21 Magnus Hagdorn
+ * piccolo3/server/PiccoloConfig.py: update config description
+ * piccolo3/server/PiccoloSpectrometer.py: hook up spectrometer power switch
+
+2020-10-21 Magnus Hagdorn
  * piccolo3/server/Piccolo.py: add functionality to switch on/off all 
    spectrometers
 

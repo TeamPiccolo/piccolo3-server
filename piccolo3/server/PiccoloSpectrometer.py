@@ -38,6 +38,11 @@ from scipy.signal import find_peaks
 
 import seabreeze.spectrometers as sb
 
+try:
+    from gpiozero import DigitalOutputDevice
+except ModuleNotFoundError:
+    DigitalOutputDevice = None
+
 class PiccoloSpectrometerWorker(PiccoloWorkerThread):
     """Spectrometer worker thread object. The worker thread performs assigned
     tasks in the background and holds on to the results until they are
@@ -72,7 +77,13 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         self._dummy_spectra = False
 
         # power control
-        self._power_switch = power_switch
+        self._power_switch = None
+        if power_switch >-1:
+            if DigitalOutputDevice is None:
+                self.log.error('gpio output device is not available')
+            else:
+                self._power_switch = DigitalOutputDevice(power_switch)
+
         self._power_delay = power_delay
         
         # the integration times
@@ -94,6 +105,8 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         self._spec = None
         self._status = None
         self.status = PiccoloSpectrometerStatus.DISCONNECTED
+        if self.power_switch is not None and self.power_switch.value == 1:
+            self.status = PiccoloSpectrometerStatus.POWERED_OFF
 
         self.minIntegrationTime = 0
         self.maxIntegrationTime = 10000
@@ -183,9 +196,9 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
             self.log.warning('spectrometer is already powered-off')
         else:
             self.disconnect()
-            if self.power_switch>-1:
-                self.log.info('powering off spectrometer {} on switch {}'.format(self.serial,self.power_switch))
-                #FIXME: switch off
+            if self.power_switch is not None:
+                self.log.info('powering off spectrometer {}'.format(self.serial))
+                self.power_switch.on()
                 self.status = PiccoloSpectrometerStatus.POWERED_OFF
             else:
                 self.log.warning('no power switch for spectrometer {}'.format(self.serial))
@@ -194,11 +207,11 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         if self.status != PiccoloSpectrometerStatus.POWERED_OFF:
             self.log.warning('spectrometer is already powered-on')
         else:
-            self.log.info('powering on spectrometer {} on switch {}'.format(self.serial,self.power_switch))
+            self.log.info('powering on spectrometer {}'.format(self.serial))
             if self.power_delay > 0:
                 self.log.info('waiting for {} seconds'.format(self.power_delay))
                 time.sleep(self.power_delay)
-            #FIXME: switch on
+            self.power_switch.off()
             self.status = PiccoloSpectrometerStatus.DISCONNECTED
         self.connect()
             
