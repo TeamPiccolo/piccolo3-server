@@ -21,7 +21,9 @@ On an up-to-date rapbian buster system install the following packages
 apt install python3-numpy python3-psutil python3-configobj python3-daemon \
             python3-tz python3-gpiozero python3-dateutil python3-lockfile \
 			python3-bitarray python3-scipy python3-sqlalchemy python3-usb \
-			python3-virtualenv
+			python3-virtualenv 
+pip3 install cython
+sudo apt-get install libusb-dev
 ```
 
 Create a virtual environment with access to system packages
