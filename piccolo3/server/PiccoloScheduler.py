@@ -145,7 +145,7 @@ class PiccoloScheduler(PiccoloBaseComponent):
         self._session = Session()
         Base.metadata.create_all(engine)
 
-        self._loggedQuietTime = False
+        self._loggedQuietTime = None
 
         self._quietTimeEnabled = self.session.query(Settings).filter(Settings.key == 'quiet_time_enabled').one_or_none()
         if self._quietTimeEnabled is None:
@@ -345,11 +345,11 @@ class PiccoloScheduler(PiccoloBaseComponent):
     def runable_jobs(self):
         inQuietTime = self.inQuietTime
         if inQuietTime:
-            if not self._loggedQuietTime:
+            if self._loggedQuietTime is None or not self._loggedQuietTime:
                 self.log.info("quiet time started, not scheduling any jobs")
                 self._loggedQuietTime = True
         else:
-            if self._loggedQuietTime:
+            if self._loggedQuietTime is None or self._loggedQuietTime:
                 self.log.info("quiet time stopped, scheduling jobs again")
                 self._loggedQuietTime = False
 
