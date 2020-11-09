@@ -82,7 +82,15 @@ class PiccoloScheduledJob(Base):
     next_time = sqlalchemy.Column(DateTimeTZ(timezone=True))
     end_time = sqlalchemy.Column(DateTimeTZ(timezone=True), default=None)
     interval = sqlalchemy.Column(sqlalchemy.Interval, default=None)
-    status = sqlalchemy.Column(sqlalchemy.Enum(PiccoloSchedulerStatus), default=PiccoloSchedulerStatus.active)
+    ignoreQuietTime = sqlalchemy.Column(sqlalchemy.Boolean, default=False)
+    status = sqlalchemy.Column(sqlalchemy.Enum(PiccoloSchedulerStatus),
+                               default=PiccoloSchedulerStatus.active)
+
+    def __repr__(self):
+        return f'PiccoloScheduledJob(id={self.id}, job={self.job}, ' \
+            'start_time={self.start_time!r}, next_time={self.next_time!r}, ' \
+            'end_time={self.end_time!r}, interval={self.interval!r}, ' \
+            'ignoreQuietTime={self.ignoreQuietTime}, status={self.status})'
 
     def check_done(self):
         changed = False
@@ -292,7 +300,8 @@ class PiccoloScheduler(PiccoloBaseComponent):
                 inQuietTime = True
         return inQuietTime
         
-    def add(self,start_time,job,interval=None,end_time=None):
+    def add(self,start_time,job,interval=None,end_time=None,
+            ignoreQuietTime=False):
         """add a new job
 
         :param start_time: the time at which the job should run
@@ -302,6 +311,9 @@ class PiccoloScheduler(PiccoloBaseComponent):
         :type interval: datetime.timedelta
         :param end_time: the time after which the job is no longer scheduled
         :type end_time: datetime.datetime or None
+        :param ignoreQuietTime: whether job should be scheduled irrespective 
+                                of quiet time (default False)
+        :type ignoreQuietTime: bool
         """
         now = self.now()
 
@@ -321,11 +333,18 @@ class PiccoloScheduler(PiccoloBaseComponent):
                                       start_time=start_time,
                                       next_time=start_time,
                                       interval=interval,
-                                      end_time=end_time)
+                                      end_time=end_time,
+                                      ignoreQuietTime = ignoreQuietTime)
         self.session.add(new_job)
         self.session.commit()
 
-        lstring = 'scheduled job {}: running {}{} at {}'.format(new_job.id,job[0],str(job[1]),str(start_time))
+        if len(job)>1:
+            job_str = '{}{}'.format(job[0],str(job[1]))
+        else:
+            job_str = '{}()'.format(job[0])
+
+        lstring = 'scheduled job {}: running {} at {}'.format(
+            new_job.id,job_str,str(start_time))
         if end_time is not None:
             lstring += ' every {} until {}'.format(interval,str(end_time))
         
@@ -357,12 +376,11 @@ class PiccoloScheduler(PiccoloBaseComponent):
         for job in self.session.query(PiccoloScheduledJob).filter(
                 PiccoloScheduledJob.next_time < self.now(),
                 PiccoloScheduledJob.status.in_([PiccoloSchedulerStatus.active,PiccoloSchedulerStatus.suspended])):
-            now = self.now()            
-            if job.status == PiccoloSchedulerStatus.active and not inQuietTime:
-                runJob = True
-            else:
-                runJob = False
-                
+            now = self.now()
+            runJob = False
+            if job.status == PiccoloSchedulerStatus.active:
+                if job.ignoreQuietTime or not inQuietTime:
+                    runJob = True
             # increment next time
             if job.interval is not None:
                 n = int((now-job.next_time).total_seconds()//job.interval.total_seconds()+1)

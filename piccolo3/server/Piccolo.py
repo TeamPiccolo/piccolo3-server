@@ -505,30 +505,41 @@ class PiccoloControl(PiccoloBaseComponent):
         if result != 'ok':
             raise RuntimeError(result)             
 
-    def _power(self,task):
+    def _power(self,task,at_time=None):
         """power on/off spectrometers
 
         :parm task: can be either on or off
+        :param at_time: the time at which the job should run or None
         """
 
         job = ('power_{}'.format(task),)
-        if self._busy.locked():
-            raise Warning('piccolo system is busy')
-        self._tQ.sync_q.put(job)
-        result = self._rQ.sync_q.get()
-        if result != 'ok':
-            raise RuntimeError(result)
+        interval = 24*60*60 # every 24 hours
+        end_time = None # until cancelled
+        if at_time:
+            self._scheduler.add(at_time,job,interval=interval,
+                                end_time=end_time,ignoreQuietTime=True)
+        else:
+            if self._busy.locked():
+                raise Warning('piccolo system is busy')
+            self._tQ.sync_q.put(job)
+            result = self._rQ.sync_q.get()
+            if result != 'ok':
+                raise RuntimeError(result)
 
     @piccoloPUT
-    def power_off(self):
+    def power_off(self,at_time=None):
         """power off spectrometers
+
+        :param at_time: the time at which the job should run or None
         """
-        self._power('off')
+        self._power('off',at_time=at_time)
     @piccoloPUT
-    def power_on(self):
+    def power_on(self,at_time=None):
         """power on spectrometers
+
+        :param at_time: the time at which the job should run or None
         """
-        self._power('on')
+        self._power('on',at_time=at_time)
 
     @piccoloGET
     def abort(self):
