@@ -371,7 +371,9 @@ class PiccoloScheduler(PiccoloBaseComponent):
                 job.next_time += n*job.interval
             
             # check if job is finished
-            if job.interval is None or (job.end_time is not None and job.next_time > job.end_time) or job.end_time < now:
+            if job.interval is None or (
+                    job.end_time is not None and 
+                    (job.next_time > job.end_time or job.end_time < now)):
                 self.log.info("job {0}: has expired".format(job.id))
                 job.status = PiccoloSchedulerStatus.done
                 

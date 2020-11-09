@@ -1,3 +1,6 @@
+2020-11-09 Magnus Hagdorn
+ * piccolo3/server/PiccoloScheduler.py: fix bug
+
 2020-11-04 Magnus Hagdorn
  * piccolo3/server/PiccoloScheduler.py: handle initial unknown state of
    whether quiet time has been logged
