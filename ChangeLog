@@ -1,3 +1,6 @@
+2020-11-11 Magnus Hagdorn
+ * piccolo3/server/PiccoloScheduler.py: improve handling of reocurring jobs
+
 2020-11-09 Magnus Hagdorn
  * piccolo3/server/Piccolo.py: add option to schedule power on/off
  * piccolo3/server/PiccoloScheduler.py: add functionality for scheduled jobs

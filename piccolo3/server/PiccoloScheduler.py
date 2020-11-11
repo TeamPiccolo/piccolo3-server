@@ -381,20 +381,30 @@ class PiccoloScheduler(PiccoloBaseComponent):
             if job.status == PiccoloSchedulerStatus.active:
                 if job.ignoreQuietTime or not inQuietTime:
                     runJob = True
-            # increment next time
+
+            # check if we missed some record times
             if job.interval is not None:
-                n = int((now-job.next_time).total_seconds()//job.interval.total_seconds()+1)
+                n = int((now-job.next_time).total_seconds()//job.interval.total_seconds())
                 if n > 1:
                     self.log.info("job {0}: fast forwarding {1} times".format(job.id,n))
-                job.next_time += n*job.interval
-            
-            # check if job is finished
-            if job.interval is None or (
-                    job.end_time is not None and 
-                    (job.next_time > job.end_time or job.end_time < now)):
-                self.log.info("job {0}: has expired".format(job.id))
+                    job.next_time += n*job.interval
+                    # check if it has expired
+                    if job.next_time > job.end_time:
+                        self.log.info("job {0}: has expired whilst waiting".format(job.id))
+                        runJob = False
+
+                # increment next time
+                job.next_time += job.interval
+
+                # check if job is completed
+                if job.end_time is not None and \
+                   (job.next_time > job.end_time or job.end_time < now):
+                    self.log.info("job {0}: is completed".format(job.id))
+                    job.status = PiccoloSchedulerStatus.done
+            else:
+                # one off job
                 job.status = PiccoloSchedulerStatus.done
-                
+
             if self._jobs_changed is not None:
                 self._jobs_changed()
             self.session.commit()
