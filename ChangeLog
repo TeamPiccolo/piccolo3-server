@@ -1,4 +1,10 @@
 2020-11-11 Magnus Hagdorn
+ * piccolo3/server/PiccoloScheduler.py: add DummyJob class for emitting jobs
+   that are not in the DB; add options to enable power-off time and power
+   off delay relative to quiet time; inject power off/on jobs at the 
+   beginning/end of power-off time
+
+2020-11-11 Magnus Hagdorn
  * piccolo3/server/PiccoloScheduler.py: improve handling of reocurring jobs
 
 2020-11-09 Magnus Hagdorn

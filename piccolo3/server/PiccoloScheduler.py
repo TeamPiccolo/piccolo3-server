@@ -68,6 +68,11 @@ class QuietTime(Base):
     time = sqlalchemy.Column(sqlalchemy.Time)
     
 
+class DummyJob:
+    def __init__(self,job):
+        self.job = job
+        self.id = -1
+
 class PiccoloScheduledJob(Base):
     """a scheduled job
 
@@ -154,24 +159,39 @@ class PiccoloScheduler(PiccoloBaseComponent):
         Base.metadata.create_all(engine)
 
         self._loggedQuietTime = None
+        self._powered_off = None
+        self._powerOffTooShortWarning = False
 
         self._quietTimeEnabled = self.session.query(Settings).filter(Settings.key == 'quiet_time_enabled').one_or_none()
         if self._quietTimeEnabled is None:
             self._quietTimeEnabled = Settings(key='quiet_time_enabled',value='False')
             self.session.add(self._quietTimeEnabled)
-        self._quietTimeEnabled_changed = False
+        self._quietTimeEnabled_changed = None
+
+        self._powerOffEnabled = self.session.query(Settings).filter(Settings.key == 'power_off_enabled').one_or_none()
+        if self._powerOffEnabled is None:
+            self._powerOffEnabled = Settings(key='power_off_enabled',value='False')
+            self.session.add(self._powerOffEnabled)
+        self._powerOffEnabled_changed = None
+
+        self._powerDelay = self.session.query(Settings).filter(Settings.key == 'power_delay').one_or_none()
+        if self._powerDelay is None:
+            self._powerDelay = Settings(key='power_delay',value='600')
+            self.session.add(self._powerDelay)
+        self._powerDelay_changed = None
         
         self._quietStart = self.session.query(QuietTime).filter(QuietTime.label == 'start').one_or_none()
         if self._quietStart is None:
             self._quietStart = QuietTime(label='start',time=self._parseTime('22:00:00'))
             self.session.add(self._quietStart)
         self._quietStart_changed = None
-            
+
         self._quietEnd = self.session.query(QuietTime).filter(QuietTime.label == 'end').one_or_none()
         if self._quietEnd is None:
             self._quietEnd = QuietTime(label='end',time=self._parseTime('04:00:00'))
             self.session.add(self._quietEnd)
         self._quietEnd_changed = None
+        self.session.commit()
 
         self._jobs_changed = None
 
@@ -214,6 +234,47 @@ class PiccoloScheduler(PiccoloBaseComponent):
         return self.get_quietTimeEnabled()
         
     @piccoloGET
+    def get_powerOffEnabled(self):
+        if self._powerOffEnabled.value == 'True':
+            return True
+        else:
+            return False
+    @piccoloPUT
+    def set_powerOffEnabled(self,e):
+        if isinstance(e,bool):
+            e = str(e)
+        if not e in ['True','False']:
+            raise ValueError('unexpected value for powerOffEnabled %s'%str(e))
+        self._powerOffEnabled.value = e
+        self.session.commit()
+        if self._powerOffEnabled_changed is not None:
+            self._powerOffEnabled_changed()
+    @piccoloChanged
+    def callback_powerOffEnabled(self,cb):
+        self._powerOffEnabled_changed = cb
+    @property
+    def powerOffEnabled(self):
+        poff = self.get_powerOffEnabled()
+        if poff:
+            now = self.now()
+            # check that quiet time period is long enough to hold the power off time
+            qs = datetime.datetime.combine(now.date(),self.quietStart,tzinfo=pytz.utc)
+            qe = datetime.datetime.combine(now.date(),self.quietEnd,  tzinfo=pytz.utc)
+            if qs > qe:
+                # add a day to account for day boundary
+                qe += datetime.timedelta(1)
+            if qe-qs < 2*datetime.timedelta(seconds=self.powerDelay):
+                if not self._powerOffTooShortWarning:
+                    self.log.warning('power off period disabled because quiet time is too short')
+                    self._powerOffTooShortWarning = True
+                poff = False
+            else:
+                self._powerOffTooShortWarning = False
+        else:
+            self._powerOffTooShortWarning = False
+        return poff
+
+    @piccoloGET
     def get_quietStart(self):
         return self.quietStart.strftime("%H:%M:%S%z")
     @piccoloPUT
@@ -248,6 +309,32 @@ class PiccoloScheduler(PiccoloBaseComponent):
         qe = self._quietEnd.time
         if qe is not None:
             return qe.replace(tzinfo=pytz.utc)
+
+    @piccoloGET
+    def get_powerDelay(self):
+        return self.powerDelay
+    @piccoloPUT
+    def set_powerDelay(self,delay):
+        self._powerDelay.value = str(delay)
+        self.session.commit()
+        if self._powerDelay_changed is not None:
+            self._powerDelay_changed()
+    @piccoloChanged
+    def callback_powerDelay(self,cb):
+        self._powerDelay_changed = cb
+    @property
+    def powerDelay(self):
+        return int(self._powerDelay.value)
+    @property
+    def powerOffTime(self):
+        t = datetime.datetime.combine(self.now().date(),self.quietStart,tzinfo=pytz.utc)
+        t += datetime.timedelta(seconds=self.powerDelay)
+        return t.time()
+    @property
+    def powerOnTime(self):
+        t = datetime.datetime.combine(self.now().date(),self.quietEnd,tzinfo=pytz.utc)
+        t -= datetime.timedelta(seconds=self.powerDelay)
+        return t.time()
 
     @piccoloGET
     def get_jobs(self):
@@ -285,20 +372,35 @@ class PiccoloScheduler(PiccoloBaseComponent):
             self.log.info('deleted schedule {}'.format(jid))
             if self._jobs_changed is not None:
                 self._jobs_changed()
-                
+
+    def _inTime(self,ttype='quiet'):
+        inTime = False
+        if ttype == 'quiet':
+            enabled = self.quietTimeEnabled
+            tstart = self.quietStart
+            tend = self.quietEnd
+        elif ttype == 'power_off':
+            enabled = self.powerOffEnabled and self.quietTimeEnabled
+            tstart = self.powerOffTime
+            tend = self.powerOnTime
+
+        if enabled:
+            now = self.now()
+            tstart = datetime.datetime.combine(now.date(),tstart,tzinfo=pytz.utc)
+            tend   = datetime.datetime.combine(now.date(),tend,  tzinfo=pytz.utc)
+            if tstart > tend:
+                # add a day to account for day boundary
+                tend += datetime.timedelta(1)
+            if tstart < now < tend:
+                inTime = True
+        return inTime
+
     @property
     def inQuietTime(self):
-        inQuietTime = False
-        if self.quietTimeEnabled:
-            now = self.now()
-            qs = datetime.datetime.combine(now.date(),self.quietStart)
-            qe = datetime.datetime.combine(now.date(),self.quietEnd)
-            if qs > qe:
-                # add a day to account for day boundary
-                qe = qe + datetime.timedelta(1)
-            if qs < now < qe:
-                inQuietTime = True
-        return inQuietTime
+        return self._inTime(ttype='quiet')
+    @property
+    def inPowerOffTime(self):
+        return self._inTime(ttype='power_off')
         
     def add(self,start_time,job,interval=None,end_time=None,
             ignoreQuietTime=False):
@@ -371,6 +473,17 @@ class PiccoloScheduler(PiccoloBaseComponent):
             if self._loggedQuietTime is None or self._loggedQuietTime:
                 self.log.info("quiet time stopped, scheduling jobs again")
                 self._loggedQuietTime = False
+        inPowerOffTime = self.inPowerOffTime
+        if inPowerOffTime:
+            if self._powered_off is None or not self._powered_off:
+                self.log.info('power off time started, scheduling power off')
+                self._powered_off = True
+                yield DummyJob(('power_off',))
+        else:
+            if self._powered_off:
+                self.log.info('power off time ended, scheduling power on')
+                self._powered_off = False
+                yield DummyJob(('power_on',))
 
         # loop over active/suspended jobs
         for job in self.session.query(PiccoloScheduledJob).filter(
