@@ -48,6 +48,10 @@ def piccolo_server(serverCfg):
     cfgFilename = pdata.join(serverCfg.cfg['config']) # Usually /mnt/piccolo2_data/piccolo.config
     piccoloCfg.readCfg(cfgFilename) 
 
+    # initialise the coolbox
+    if 'coolbox' in piccoloCfg.cfg:
+        coolbox = piccolo.PiccoloCoolboxControl(piccoloCfg.cfg['coolbox'])
+
     # initialise the shutters
     try:
         shutters = piccolo.PiccoloShutters(piccoloCfg.cfg['channels'])
@@ -65,10 +69,9 @@ def piccolo_server(serverCfg):
     # initialise the piccolo controller
     controller = piccolo.PiccoloControl(pdata,shutters,spectrometers)
 
-        
     root = resource.Site()
     # add the components
-    for c in [psys,pdata,shutters,spectrometers,controller]:
+    for c in [psys,pdata,coolbox,shutters,spectrometers,controller]:
         root.add_resource(*c.coapSite)
 
 

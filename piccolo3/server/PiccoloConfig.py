@@ -49,6 +49,12 @@ defaultCfgStr = """
       [[[[__many__]]]]
         wavelengthCalibrationCoefficientsPiccolo = float_list()
 
+[coolbox]
+  update_interval = integer(default=5) # update inteval in sec
+  [[temperature_sensors]]
+     [[[__many__]]]
+       target = float(default=10.) # target temperature
+
 [output]
   # overwrite output files when clobber is set to True
   clobber = boolean(default=False)
@@ -103,5 +109,5 @@ if __name__ == '__main__':
 
     print(pretty(cfg.cfg.dict()))
 
-    for s in cfg.cfg['calibrations']:
-        print (cfg.getCalibration(s))
+    #for s in cfg.cfg['calibrations']:
+    #    print (cfg.getCalibration(s))

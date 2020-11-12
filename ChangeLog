@@ -1,3 +1,9 @@
+2020-11-12 Magnus Hagdorn
+ * piccolo3/pserver.py: initialise coolbox component
+ * piccolo3/server/PiccoloConfig.py: add configuration for coolbox component
+ * piccolo3/server/PiccoloCoolboxControl.py: new skeleton coolbox component
+ * piccolo3/server/__init__.py: import coolbox component
+
 2020-11-11 Magnus Hagdorn
  * piccolo3/server/PiccoloScheduler.py: add DummyJob class for emitting jobs
    that are not in the DB; add options to enable power-off time and power
