@@ -1,31 +1,30 @@
-# Need to send: Current, voltage, fan1, fan2, temp1, tempsetpoint
+# TODO list
 
-# Need to set: temp, fan1, fan2, string for heater serial port
+Need to send: Current, voltage, fan1, fan2, temp1, tempsetpoint
 
-# Need to log: temp1, temp2, current, voltage, timestamp, fan1, fan2
+Need to set: temp, fan1, fan2, string for heater serial port
 
-# TODO:
+Need to log: temp1, temp2, current, voltage, timestamp, fan1, fan2
 
-# Add class to handle serial connection. Getter and setter, and init.
+## Pending work
 
-# Add logging code to server/PiccoloCoolBoxControl - logging code on 129.
+- server/PiccoloConfig.py
+  - Add fans x2
+  - voltage sensor
+  - serial location
+  - coolbox log location path
+  - current sensor.
+- server/PiccoloCoolboxControl.py
+  - Add parent class to handle serial connection. Getter and setter, and init.
+  - Make new fan class. Then on line 114 - 116 of coolboxControl class, register the fan classes
+  - Make new voltage class. Then on line 114 - 116 of coolboxControl class, register the voltage classes
+  - Make new current class. Then on line 114 - 116 of coolboxControl class, register the current classes
+  - Add logging code to server/PiccoloCoolBoxControl - logging code on 129.
+- Proxy classes
+  - Add proxy classes for fan / voltage / current classes
+  - Ammend temp and control proxy classes
 
-# Add fans (2 of them) in the server/PiccoloConfig.py, as well as voltage sensor, serial location, coolbox log location path, and current sensor.
+## Done:
 
-# Make new fan class. Then on line 114 - 116 of coolboxControl class, register the fan classes
-
-# Make new voltage class. Then on line 114 - 116 of coolboxControl class, register the voltage classes
-
-# Make new current class. Then on line 114 - 116 of coolboxControl class, register the current classes
-
-# Proxy classes
-
-# Add proxy classes for fan / voltage / current classes
-
-# Ammend temp and control proxy classes
-
-# Done:
-
-# Temperature class is basically done.
-
-# Registering the temperature class is done
+- Temperature class is basically done by Magi.
+- Registering the temperature class is done by Magi.
