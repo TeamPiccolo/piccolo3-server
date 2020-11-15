@@ -9,11 +9,11 @@ Need to log: temp1, temp2, current, voltage, timestamp, fan1, fan2
 ## Pending work
 
 - server/PiccoloConfig.py
-  - Add fans x2
-  - voltage sensor
-  - serial location
-  - coolbox log location path
-  - current sensor.
+  - ~~Add fans x2~~
+  - ~~voltage sensor~~
+  - ~~current sensor~~
+  - ~~serial location~~
+  - ~~coolbox log location path~~
 - server/PiccoloCoolboxControl.py
   - Add parent class to handle serial connection. Getter and setter, and init.
   - Make new fan class. Then on line 114 - 116 of coolboxControl class, register the fan classes
