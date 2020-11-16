@@ -26,7 +26,7 @@ import os.path
 import logging
 from configobj import ConfigObj, flatten_errors
 from validate import Validator
-from pprint import pprint as pretty # To pretty-print output when testing.
+from pprint import pprint as pretty  # To pretty-print output when testing.
 
 # the defaults
 defaultCfgStr = """
@@ -51,9 +51,14 @@ defaultCfgStr = """
 
 [coolbox]
   update_interval = integer(default=5) # update inteval in sec
+  serial_port = string(default="/dev/ttyUSB0")
+  coolbox_log_path = string(default="./coolbox.log")
   [[temperature_sensors]]
      [[[__many__]]]
-       target = float(default=10.) # target temperature
+       target = float(default=20.) # target temperature
+  [[fans]]
+    [[[__many__]]]
+      fan_on = boolean(deafult=False)
 
 [output]
   # overwrite output files when clobber is set to True
@@ -64,8 +69,10 @@ defaultCfgStr = """
 """
 
 # populate the default  config object which is used as a validator
-piccoloDefaults = ConfigObj(defaultCfgStr.split('\n'),list_values=False,_inspec=True)
+piccoloDefaults = ConfigObj(defaultCfgStr.split(
+    '\n'), list_values=False, _inspec=True)
 validator = Validator()
+
 
 class PiccoloConfig:
     """object managing the piccolo configuration"""
@@ -75,14 +82,13 @@ class PiccoloConfig:
         self._cfg = ConfigObj(configspec=piccoloDefaults)
         self._cfg.validate(validator)
 
-    def readCfg(self,fname):
+    def readCfg(self, fname):
         """read and parse configuration file"""
 
         if not os.path.isfile(fname):
             msg = 'no such configuration file {0}'.format(fname)
             self.log.error(msg)
             raise RuntimeError(msg)
-
 
         self._cfg.filename = fname
         self._cfg.reload()
@@ -98,16 +104,17 @@ class PiccoloConfig:
     @property
     def cfg(self):
         return self._cfg
-                
+
+
 if __name__ == '__main__':
     import sys
 
     cfg = PiccoloConfig()
 
-    if len(sys.argv)>1:
+    if len(sys.argv) > 1:
         cfg.readCfg(sys.argv[1])
 
     print(pretty(cfg.cfg.dict()))
 
-    #for s in cfg.cfg['calibrations']:
+    # for s in cfg.cfg['calibrations']:
     #    print (cfg.getCalibration(s))

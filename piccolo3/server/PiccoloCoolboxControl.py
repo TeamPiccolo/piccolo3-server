@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with piccolo3-server.  If not, see <http://www.gnu.org/licenses/>.
 
+
 """
 .. moduleauthor:: Magnus Hagdorn <magnus.hagdorn@ed.ac.uk>
 
@@ -29,12 +30,13 @@ import logging
 
 from random import randint
 
+
 class PiccoloTemperature(PiccoloNamedComponent):
     """manage temperature control on coolbox"""
 
     NAME = "coolboxctrl"
 
-    def __init__(self,name,target=10):
+    def __init__(self, name, target=10):
         super().__init__(name)
 
         self._target_temp_changed = None
@@ -46,45 +48,53 @@ class PiccoloTemperature(PiccoloNamedComponent):
     @property
     def target_temp(self):
         return self._target_temp
+
     @target_temp.setter
-    def target_temp(self,temp):
+    def target_temp(self, temp):
         self._target_temp = temp
         # do something to the coolbox
 
         if self._target_temp_changed is not None:
             self._target_temp_changed()
+
     @piccoloGET
     def get_target_temp(self):
         return self.target_temp
+
     @piccoloPUT
-    def set_target_temp(self,temp):
+    def set_target_temp(self, temp):
         self.target_temp = temp
+
     @piccoloChanged
-    def callback_target_temp(self,cb):
+    def callback_target_temp(self, cb):
         self._target_temp_changed = cb
 
     @property
     def current_temp(self):
         return self._current_temp
+
     @current_temp.setter
-    def current_temp(self,temp):
+    def current_temp(self, temp):
         if temp != self._current_temp:
             self._current_temp = temp
             if self._current_temp_changed is not None:
                 self._current_temp_changed()
+
     @piccoloGET
     def get_current_temp(self):
         return self.current_temp
+
     @piccoloChanged
-    def callback_current_temp(self,cb):
+    def callback_current_temp(self, cb):
         self._current_temp_changed = cb
-        
+
+
 class PiccoloCoolboxControl(PiccoloBaseComponent):
     """manage temperature control on coolbox"""
 
     NAME = "coolboxctrl"
 
-    def __init__(self,coolbox_cfg):
+    def __init__(self, coolbox_cfg):
         super().__init__()
 
         self._update_interval = coolbox_cfg['update_interval']
@@ -94,13 +104,13 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
                                                                 target=coolbox_cfg['temperature_sensors'][temp]['target'])
 
         for temp in self.temperature_sensors:
-            self.coapResources.add_resource([temp],self.temperature_sensors[temp].coapResources)
+            self.coapResources.add_resource(
+                [temp], self.temperature_sensors[temp].coapResources)
 
         # start the updater thread
         loop = asyncio.get_event_loop()
         self._uiTask = loop.create_task(self._update())
         self.log.info('started')
-
 
     async def _update(self):
         """monitor coolbox"""
@@ -108,10 +118,10 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
         while True:
             # read temperature from coolbox
             for temp in self.temperature_sensors:
-                self.temperature_sensors[temp].current_temp = randint(0,abs(self.temperature_sensors[temp].target_temp))
-                
+                self.temperature_sensors[temp].current_temp = randint(
+                    0, abs(self.temperature_sensors[temp].target_temp))
+
             await asyncio.sleep(self._update_interval)
-    
 
     @property
     def temperature_sensors(self):
@@ -122,6 +132,7 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
         temp = list(self.temperature_sensors.keys())
         temp.sort()
         return temp
+
 
 if __name__ == '__main__':
     from piccolo3.common import piccoloLogging
@@ -140,11 +151,12 @@ if __name__ == '__main__':
     def start_worker_loop(loop):
         asyncio.set_event_loop(loop)
         loop.run_forever()
-        
+
     root = resource.Site()
     root.add_resource(*coolbox.coapSite)
     root.add_resource(('.well-known', 'core'),
                       resource.WKCResource(root.get_resources_as_linkheader))
-    asyncio.Task(aiocoap.Context.create_server_context(root,loggername='piccolo.coap'))
+    asyncio.Task(aiocoap.Context.create_server_context(
+        root, loggername='piccolo.coap'))
 
     asyncio.get_event_loop().run_forever()
