@@ -51,7 +51,7 @@ defaultCfgStr = """
 
 [coolbox]
   update_interval = integer(default=5) # update inteval in sec
-  serial_location = string(default="/dev/ttyUSB0")
+  serial_port = string(default="/dev/ttyUSB0")
   coolbox_log_path = string(default="./coolbox.log")
   [[temperature_sensors]]
      [[[__many__]]]
@@ -59,10 +59,6 @@ defaultCfgStr = """
   [[fans]]
     [[[__many__]]]
       fan_on = boolean(deafult=False)
-  [[voltage_sensors]]
-    [[[__many__]]]
-  [[current_sensors]]
-    [[[__many__]]]
 
 [output]
   # overwrite output files when clobber is set to True
