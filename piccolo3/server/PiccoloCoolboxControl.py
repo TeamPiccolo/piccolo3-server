@@ -36,12 +36,17 @@ class PiccoloSerialConnection(PiccoloNamedComponent):
     """Manage serial connection for controlling and managing the coolbox"""
 
     def __init__(self, serial_port="/dev/ttyUSB0"):
+        super().__init__()
         self.verbose = False
         self.tsleep = 0.001
-        self.serial_port = serial_port
+        self._serial_port = serial_port
         self.ser = None
         self.initialize_serial()
         self.initialise_coolbox()
+
+    @property
+    def serial_port(self):
+        return self._serial_port
 
     def initialize_serial(self):
         try:
@@ -77,8 +82,8 @@ class PiccoloSerialConnection(PiccoloNamedComponent):
             self.ser.close()
             self.log.info("Successfully initialized coolbox.")
         except Exception as e:
-            self.log.debug("Couldn't initialize coolbox.")
-            self.log.debug(e)
+            self.log.error("Couldn't initialize coolbox.")
+            self.log.error(e)
 
     async def check_serial_not_in_use(self):
         for i in range(5):  # Check 5 times before giving up.
@@ -92,11 +97,11 @@ class PiccoloSerialConnection(PiccoloNamedComponent):
                     print(
                         "ser.isOpen() failed. Probably couldn't establish a serial connection. Attempt " + str(i) + " of 5")
                 if i == 5:
-                    self.log.debug("Failed to check serial not in use.")
+                    self.log.warning("Failed to check serial not in use.")
         try:
             self.ser.close()
         except Exception as e:
-            self.log.debug(e)
+            self.log.error(e)
 
     async def get_serial_data(self, cmd_str, verbose_message):
         self.ser.write(cmd_str.encode())
