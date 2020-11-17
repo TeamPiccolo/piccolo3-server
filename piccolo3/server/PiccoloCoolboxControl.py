@@ -41,6 +41,7 @@ class PiccoloSerialConnection(PiccoloNamedComponent):
         self.tsleep = 0.001
         self._serial_port = serial_port
         self.ser = None
+        self._serial_lock = asyncio.Lock()
         self.initialize_serial()
         self.initialise_coolbox()
 
@@ -67,56 +68,48 @@ class PiccoloSerialConnection(PiccoloNamedComponent):
             self.log.debug("Serial error:", e)
 
     def initialise_coolbox(self):
-        try:
-            self.ser.open()
-            if self.ser.isOpen():
-                # Ensure mode is PID (6) or use 0 for no regulation
-                cmd_str = "$R13=6\r\n"
-                self.ser.write(cmd_str.encode())
-                cmd_str = "$W\r\n"
-                self.ser.write(cmd_str.encode())
-                cmd_str = "$RW\r\n"
-                self.ser.write(cmd_str.encode())
-                if self.verbose:
-                    print("Coolbox initiallised")
-            self.ser.close()
-            self.log.info("Successfully initialized coolbox.")
-        except Exception as e:
-            self.log.error("Couldn't initialize coolbox.")
-            self.log.error(e)
-
-    async def check_serial_not_in_use(self):
-        for i in range(5):  # Check 5 times before giving up.
+        with self._serial_lock:
             try:
+                self.ser.open()
                 if self.ser.isOpen():
+                    # Ensure mode is PID (6) or use 0 for no regulation
+                    cmd_str = "$R13=6\r\n"
+                    self.ser.write(cmd_str.encode())
+                    cmd_str = "$W\r\n"
+                    self.ser.write(cmd_str.encode())
+                    cmd_str = "$RW\r\n"
+                    self.ser.write(cmd_str.encode())
                     if self.verbose:
-                        print("Heater serial port is in use")
-                    await asyncio.sleep(self.tsleep)
+                        print("Coolbox initiallised")
+                self.ser.close()
+                self.log.info("Successfully initialized coolbox.")
             except Exception as e:
-                if self.verbose:
-                    print(
-                        "ser.isOpen() failed. Probably couldn't establish a serial connection. Attempt " + str(i) + " of 5")
-                if i == 5:
-                    self.log.warning("Failed to check serial not in use.")
-        try:
-            self.ser.close()
-        except Exception as e:
-            self.log.error(e)
+                self.log.error("Couldn't initialize coolbox.")
+                self.log.error(e)
 
-    async def get_serial_data(self, cmd_str, verbose_message):
-        self.ser.write(cmd_str.encode())
-        await asyncio.sleep(self.tsleep)
-        serial_data = self.ser.readline()
-        serial_data = self.ser.readline()
-        serial_data = serial_data.decode()
-        serial_data = struct.unpack('!f', bytes.fromhex(serial_data))[0]
-        if self.verbose:
-            print(verbose_message + " : command string sent was " +
-                  cmd_str + " : data recieved back was " + str(serial_data) + "\n")
-        return data
+    async def serial_command(self, cmd_str, verbose_message):
+        with self._serial_lock:
+            try:
+                self.ser.open()
+                if self.ser.isOpen():
+                    self.ser.write(cmd_str.encode())
+                    await asyncio.sleep(self.tsleep)
+                    serial_data = self.ser.readline()
+                    serial_data = self.ser.readline()
+                    serial_data = serial_data.decode()
+                    serial_data = struct.unpack(
+                        '!f', bytes.fromhex(serial_data))[0]
+                    if self.verbose:
+                        print(verbose_message + " : command string sent was " +
+                              cmd_str + " : data recieved back was " + str(serial_data) + "\n")
+                    self.ser.close()
+                    return data
+            except Exception as e:
+                self.log.error("Couldn't send serial command " + cmd_str)
+                self.log.error(e)
 
 
-class PiccoloTemperature(PiccoloNamedComponent):
+class PiccoloTemperature(PiccoloSerialConnection):
     """manage temperature control on coolbox"""
 
     NAME = "coolboxctrl"
