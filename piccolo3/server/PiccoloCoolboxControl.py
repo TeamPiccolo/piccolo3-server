@@ -87,7 +87,7 @@ class PiccoloSerialConnection(PiccoloNamedComponent):
                 self.log.error("Couldn't initialize coolbox.")
                 self.log.error(e)
 
-    async def serial_command(self, cmd_str, verbose_message):
+    async def serial_command(self, cmd_str, verbose_message=""):
         with self._serial_lock:
             try:
                 self.ser.open()
@@ -118,7 +118,7 @@ class PiccoloTemperature(PiccoloSerialConnection):
         super().__init__(name)
 
         self._target_temp_changed = None
-        self.target_temp = target
+        self._target_temp = target
 
         self._current_temp_changed = None
         self._current_temp = None
@@ -128,9 +128,11 @@ class PiccoloTemperature(PiccoloSerialConnection):
         return self._target_temp
 
     @target_temp.setter
-    def target_temp(self, temp):
+    async def target_temp(self, temp):
         self._target_temp = temp
         # do something to the coolbox
+        cmd_str = "$R0=" + str(temp) + "\r\n"
+        await self.serial_command(cmd_str)
 
         if self._target_temp_changed is not None:
             self._target_temp_changed()
@@ -165,6 +167,131 @@ class PiccoloTemperature(PiccoloSerialConnection):
     @piccoloChanged
     def callback_current_temp(self, cb):
         self._current_temp_changed = cb
+
+
+class PiccoloVoltage(PiccoloSerialConnection):
+    """Read voltage on coolbox"""
+
+    NAME = "coolboxctrl"
+
+    def __init__(self, name):
+        super().__init__(name)
+
+        self._current_voltage = None
+        self._current_voltage_changed = None
+
+    @property
+    def current_voltage(self):
+        return self._current_voltage
+
+    @current_voltage.setter
+    def current_voltage(self, voltage):
+        if voltage != self._current_voltage:
+            self._current_voltage = voltage
+            if self._current_voltage_changed is not None:
+                self._current_voltage_changed()
+
+    @piccoloGET
+    def get_current_voltage(self):
+        return self.current_voltage
+
+    @piccoloChanged
+    def callback_current_voltage(self, cb):
+        self._current_voltage_changed = cb
+
+
+class PiccoloCurrent(PiccoloSerialConnection):
+    """Read current on coolbox"""
+
+    NAME = "coolboxctrl"
+
+    def __init__(self, name):
+        super().__init__(name)
+
+        self._current_current = None
+        self._current_current_changed = None
+
+    @property
+    def current_current(self):
+        return self._current_current
+
+    @current_current.setter
+    def current_current(self, current):
+        if current != self._current_current:
+            self._current_current = current
+            if self._current_current_changed is not None:
+                self._current_current_changed()
+
+    @piccoloGET
+    def get_current_current(self):
+        return self.current_current
+
+    @piccoloChanged
+    def callback_current_current(self, cb):
+        self._current_current_changed = cb
+
+
+class PiccoloFan(PiccoloSerialConnection):
+    """manage fan control on coolbox"""
+
+    NAME = "coolboxctrl"
+
+    def __init__(self, name, fan_state=10):
+        super().__init__(name)
+
+        self._target_fan_state_changed = None
+        self._target_fan_state = fan_state
+
+        self._current_fan_state_changed = None
+        self._current_fan_state = None
+
+    @property
+    def target_fan_state(self):
+        return self._target_fan_state
+
+    @target_fan_state.setter
+    async def target_fan_state(self, fan_state):
+        self._target_fan_state = fan_state
+        # do something to the coolbox
+        if self.name == "fan1":
+            cmd_str = "$R16="+control+"\r\n"
+        else:
+            cmd_str = "$R23="+control+"\r\n"
+        await self.serial_command(cmd_str)
+
+        if self._target_fan_state_changed is not None:
+            self._target_fan_state_changed()
+
+    @piccoloGET
+    def get_target_fan_state(self):
+        return self.target_fan_state
+
+    @piccoloPUT
+    def set_target_fan_state(self, fan_state):
+        self.target_fan_state = fan_state
+
+    @piccoloChanged
+    def callback_target_fan_state(self, cb):
+        self._target_fan_state_changed = cb
+
+    @property
+    def current_fan_state(self):
+        return self._current_fan_state
+
+    @current_fan_state.setter
+    def current_fan_state(self, fan_state):
+        if fan_state != self._current_fan_state:
+            self._current_fan_state = fan_state
+            if self._current_fan_state_changed is not None:
+                self._current_fan_state_changed()
+
+    @piccoloGET
+    def get_current_fan_state(self):
+        return self.current_fan_state
+
+    @piccoloChanged
+    def callback_current_fan_state(self, cb):
+        self._current_fan_state_changed = cb
 
 
 class PiccoloCoolboxControl(PiccoloBaseComponent):
