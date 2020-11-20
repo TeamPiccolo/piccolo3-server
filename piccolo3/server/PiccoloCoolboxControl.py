@@ -249,8 +249,8 @@ class PiccoloCurrent(PiccoloNamedComponent):
             if self._current_current_changed is not None:
                 self._current_current_changed()
 
-    async def refresh_current_current(self):
-        cmd_str="$RN152?\r\n"
+    async def refresh_current_current(self): 
+        cmd_str="$RN152?\r\n" # TODO may need to make command string a param to allow for different registers in the serial call. This is hard coded to main current.
         current_current = await self.serial_connection.serial_command(cmd_str)
         self.current_current = current_current
 
@@ -292,9 +292,9 @@ class PiccoloFan(PiccoloNamedComponent):
         self._target_fan_state = fan_state
         # do something to the coolbox
         if self.name == "fan1":
-            cmd_str = "$R16="+control+"\r\n"
+            cmd_str = "$R16="+fan_state+"\r\n"
         else:
-            cmd_str = "$R23="+control+"\r\n"
+            cmd_str = "$R23="+fan_state+"\r\n"
         await self.serial_connection.serial_command(cmd_str)
 
         if self._target_fan_state_changed is not None:
@@ -343,24 +343,15 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
         self._update_interval = coolbox_cfg['update_interval']
         self._serial_connection = PiccoloSerialConnection(serial_port=coolbox_cfg['serial_port'])
         self._voltage_sensors = {"voltage": PiccoloVoltage("voltage", serial_connection=self.serial_connection)}
-        self._current_sensors = {"current": PiccoloCurrent("current",serial_connection=self.serial_connection)}
+        self._current_sensors = {"current": PiccoloCurrent("current", serial_connection=self.serial_connection)}
         self._fan_sensors = {}
         self._temperature_sensors = {}
+
         for fan in coolbox_cfg['fans']:
-            self._fan_sensors[temp] = PiccoloTemperature(fan,
-                                                                fan_state=coolbox_cfg['fans'][fan]['fan_on'],serial_connection=self.serial_connection)
+            self._fan_sensors[temp] = PiccoloFan(fan, serial_connection=self.serial_connection, fan_state=coolbox_cfg['fans'][fan]['fan_on'])
         
         for temp in coolbox_cfg['temperature_sensors']:
-            self.temperature_sensors[temp] = PiccoloTemperature(temp,
-                                                                target=coolbox_cfg['temperature_sensors'][temp]['target'],serial_connection=self.serial_connection) # should this be self._temperatures_sensors, as no setter? 
-
-        for volts in self.voltage_sensors:
-            self.coapResources.add_resource(
-                [volts], self.voltage_sensors[volts].coapResources)
-
-        for current in self.current_sensors:
-            self.coapResources.add_resource(
-                [current], self.current_sensors[current].coapResources)
+            self.temperature_sensors[temp] = PiccoloTemperature(temp, serial_connection=self.serial_connection, target=coolbox_cfg['temperature_sensors'][temp]['target']) # should this be self._temperatures_sensors, as no setter? 
 
         for fan in self.temperature_sensors:
             self.coapResources.add_resource(
@@ -369,6 +360,15 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
         for temp in self.temperature_sensors:
             self.coapResources.add_resource(
                 [temp], self.temperature_sensors[temp].coapResources)
+                
+        for volts in self.voltage_sensors:
+            self.coapResources.add_resource(
+                [volts], self.voltage_sensors[volts].coapResources)
+
+        for current in self.current_sensors:
+            self.coapResources.add_resource(
+                [current], self.current_sensors[current].coapResources)
+
 
         # start the updater thread
         loop = asyncio.get_event_loop()
