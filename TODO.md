@@ -17,11 +17,11 @@ Need to log: temp1, temp2, current, voltage, timestamp, fan1, fan2
 - server/PiccoloCoolboxControl.py
   - ~~Add parent class to handle serial connection. Getter and setter, and init.~~
   - ~~Make new fan class.~~
-  - Then on line 114 - 116 of coolboxControl class, register the fan classes
+  - ~~Then on line 114 - 116 of coolboxControl class, register the fan classes~~
   - ~~Make new voltage class.~~
-  - Then on line 114 - 116 of coolboxControl class, register the voltage classes
+  - ~~Then on line 114 - 116 of coolboxControl class, register the voltage classes~~
   - ~~Make new current class.~~
-  - Then on line 114 - 116 of coolboxControl class, register the current classes
+  - ~~Then on line 114 - 116 of coolboxControl class, register the current classes~~
   - Add logging code to server/PiccoloCoolBoxControl - logging code on 129.
 - Proxy classes
   - Add proxy classes for fan / voltage / current classes

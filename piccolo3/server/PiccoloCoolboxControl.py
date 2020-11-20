@@ -32,7 +32,7 @@ import logging
 from random import randint
 
 
-class PiccoloSerialConnection:
+class PiccoloSerialConnection(PiccoloNamedComponent):
     """Manage serial connection for controlling and managing the coolbox"""
 
     def __init__(self, serial_port="/dev/ttyUSB0"):
@@ -250,7 +250,7 @@ class PiccoloCurrent(PiccoloNamedComponent):
                 self._current_current_changed()
 
     async def refresh_current_current(self): 
-        cmd_str="$RN152?\r\n" # TODO may need to make command string a param to allow for different registers in the serial call. This is hard coded to main current.
+        cmd_str="$RN152?\r\n" # TODO may need to make command string a param + put in config to allow for different registers in the serial call. This is currently hard coded to main current.
         current_current = await self.serial_connection.serial_command(cmd_str)
         self.current_current = current_current
 
@@ -360,7 +360,7 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
         for temp in self.temperature_sensors:
             self.coapResources.add_resource(
                 [temp], self.temperature_sensors[temp].coapResources)
-                
+
         for volts in self.voltage_sensors:
             self.coapResources.add_resource(
                 [volts], self.voltage_sensors[volts].coapResources)
@@ -383,14 +383,23 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
             # for temp in self.temperature_sensors:
             #     self.temperature_sensors[temp].current_temp = randint(
             #         0, abs(self.temperature_sensors[temp].target_temp))
+            log_string = ""
             for temp in self.temperature_sensors:
                 await self.temperature_sensors[temp].refresh_current_temp() 
+                log_string += "Temperature sensor " + str(temp) + ": " + str(self.temperature_sensors[temp].get_current_temp())
 
             for volt in self.voltage_sensors:
                 await self.voltage_sensors[volt].refresh_current_voltage() 
+                log_string += ". Voltage sensor " + str(volt) + ": " + str(self.voltage_sensors[volt].get_current_voltage())
 
             for curr in self.current_sensors:
                 await self.current_sensors[curr].refresh_current_current() 
+                log_string += ". Current sensor " + str(curr) + ": " + str(self.current_sensors[curr].get_current_current())
+            
+            for fan in self.fan_sensors:
+                log_string += ". Fan " + str(curr) + " target state: " + str(self.fan_sensors[fan].target_fan_state) + ", current state: " +  str(self.fan_sensors[fan].current_fan_state)
+
+            self.log.info("Coolbox readings: " + log_string)
 
             await asyncio.sleep(self._update_interval)
 
