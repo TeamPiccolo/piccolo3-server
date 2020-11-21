@@ -348,7 +348,7 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
         self._temperature_sensors = {}
 
         for fan in coolbox_cfg['fans']:
-            self._fan_sensors[temp] = PiccoloFan(fan, serial_connection=self.serial_connection, fan_state=coolbox_cfg['fans'][fan]['fan_on'])
+            self.fan_sensors[temp] = PiccoloFan(fan, serial_connection=self.serial_connection, fan_state=coolbox_cfg['fans'][fan]['fan_on'])
         
         for temp in coolbox_cfg['temperature_sensors']:
             self.temperature_sensors[temp] = PiccoloTemperature(temp, serial_connection=self.serial_connection, target=coolbox_cfg['temperature_sensors'][temp]['target']) # should this be self._temperatures_sensors, as no setter? 
@@ -410,6 +410,10 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
     @property
     def temperature_sensors(self):
         return self._temperature_sensors
+    
+    @temperature_sensors.setter
+    def temperature_sensors(self, sensor):
+        self._temperature_sensors = sensor
 
     @piccoloGET
     def get_temperature_sensors(self):
@@ -417,19 +421,19 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
         temp.sort()
         return temp
 
-    # Do we need setters for this here too? 
-
     @property
     def fan_sensors(self):
         return self._fan_sensors
+    
+    @fan_sensors.setter
+    def temperature_sensors(self, sensor):
+        self._fan_sensors = sensor
 
     @piccoloGET
     def get_fan_sensors(self):
         fans = list(self.fan_sensors.keys())
         fans.sort()
         return fans
-
-    # Do we need setters for this here too? 
 
     @property
     def voltage_sensors(self):
@@ -441,8 +445,6 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
         volts.sort()
         return volts
 
-    # Do we need setters for this here too? 
-
     @property
     def current_sensors(self):
         return self._current_sensors 
@@ -453,7 +455,6 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
         current.sort()
         return current
 
-    # Do we need setters for this here too? 
 
 
 if __name__ == '__main__':
