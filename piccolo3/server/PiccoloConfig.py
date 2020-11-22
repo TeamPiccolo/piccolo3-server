@@ -51,7 +51,7 @@ defaultCfgStr = """
 
 [coolbox]
   update_interval = integer(default=5) # update inteval in sec
-  serial_port = string(default="/dev/ttyUSB0")
+  serial_port = string(default="/dev/ttyUSB0") # /dev/ttyAMA0
   coolbox_log_path = string(default="./coolbox.log")
   [[temperature_sensors]]
      [[[__many__]]]

@@ -36,6 +36,7 @@ class PiccoloSerialConnection(PiccoloBaseComponent):
     """Manage serial connection for controlling and managing the coolbox"""
 
     def __init__(self, serial_port="/dev/ttyUSB0"):
+        super().__init__()
         self.verbose = False
         self.tsleep = 0.001
         self._serial_port = serial_port
@@ -67,7 +68,7 @@ class PiccoloSerialConnection(PiccoloBaseComponent):
             self.log.debug("Serial error:", e)
 
     def initialise_coolbox(self):
-        with self._serial_lock:
+        with (yield from self._serial_lock):
             try:
                 self.ser.open()
                 if self.ser.isOpen():
