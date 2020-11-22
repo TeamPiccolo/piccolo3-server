@@ -32,7 +32,7 @@ import logging
 from random import randint
 
 
-class PiccoloSerialConnection(PiccoloNamedComponent):
+class PiccoloSerialConnection(PiccoloBaseComponent):
     """Manage serial connection for controlling and managing the coolbox"""
 
     def __init__(self, serial_port="/dev/ttyUSB0"):
@@ -234,9 +234,9 @@ class PiccoloCurrent(PiccoloNamedComponent):
 
         self._serial_connection = serial_connection
 
-   @property
+    @property
     def serial_connection(self):
-        return self._serial_connection 
+        return self._serial_connection
 
     @property
     def current_current(self):
@@ -249,8 +249,9 @@ class PiccoloCurrent(PiccoloNamedComponent):
             if self._current_current_changed is not None:
                 self._current_current_changed()
 
-    async def refresh_current_current(self): 
-        cmd_str="$RN152?\r\n" # TODO may need to make command string a param + put in config to allow for different registers in the serial call. This is currently hard coded to main current.
+    async def refresh_current_current(self):
+        # TODO may need to make command string a param + put in config to allow for different registers in the serial call. This is currently hard coded to main current.
+        cmd_str = "$RN152?\r\n"
         current_current = await self.serial_connection.serial_command(cmd_str)
         self.current_current = current_current
 
@@ -341,17 +342,23 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
         super().__init__()
 
         self._update_interval = coolbox_cfg['update_interval']
-        self._serial_connection = PiccoloSerialConnection(serial_port=coolbox_cfg['serial_port'])
-        self._voltage_sensors = {"voltage": PiccoloVoltage("voltage", serial_connection=self.serial_connection)}
-        self._current_sensors = {"current": PiccoloCurrent("current", serial_connection=self.serial_connection)}
+        self._serial_connection = PiccoloSerialConnection(
+            serial_port=coolbox_cfg['serial_port'])
+        self._voltage_sensors = {"voltage": PiccoloVoltage(
+            "voltage", serial_connection=self.serial_connection)}
+        self._current_sensors = {"current": PiccoloCurrent(
+            "current", serial_connection=self.serial_connection)}
         self._fan_sensors = {}
         self._temperature_sensors = {}
 
         for fan in coolbox_cfg['fans']:
-            self.fan_sensors[temp] = PiccoloFan(fan, serial_connection=self.serial_connection, fan_state=coolbox_cfg['fans'][fan]['fan_on'])
-        
+            self.fan_sensors[temp] = PiccoloFan(
+                fan, serial_connection=self.serial_connection, fan_state=coolbox_cfg['fans'][fan]['fan_on'])
+
         for temp in coolbox_cfg['temperature_sensors']:
-            self.temperature_sensors[temp] = PiccoloTemperature(temp, serial_connection=self.serial_connection, target=coolbox_cfg['temperature_sensors'][temp]['target']) # should this be self._temperatures_sensors, as no setter? 
+            # should this be self._temperatures_sensors, as no setter?
+            self.temperature_sensors[temp] = PiccoloTemperature(
+                temp, serial_connection=self.serial_connection, target=coolbox_cfg['temperature_sensors'][temp]['target'])
 
         for fan in self.temperature_sensors:
             self.coapResources.add_resource(
@@ -369,7 +376,6 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
             self.coapResources.add_resource(
                 [current], self.current_sensors[current].coapResources)
 
-
         # start the updater thread
         loop = asyncio.get_event_loop()
         self._uiTask = loop.create_task(self._update())
@@ -385,19 +391,26 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
             #         0, abs(self.temperature_sensors[temp].target_temp))
             log_string = ""
             for temp in self.temperature_sensors:
-                await self.temperature_sensors[temp].refresh_current_temp() 
-                log_string += "Temperature sensor " + str(temp) + ": " + str(self.temperature_sensors[temp].get_current_temp())
+                await self.temperature_sensors[temp].refresh_current_temp()
+                log_string += "Temperature sensor " + \
+                    str(temp) + ": " + \
+                    str(self.temperature_sensors[temp].get_current_temp())
 
             for volt in self.voltage_sensors:
-                await self.voltage_sensors[volt].refresh_current_voltage() 
-                log_string += ". Voltage sensor " + str(volt) + ": " + str(self.voltage_sensors[volt].get_current_voltage())
+                await self.voltage_sensors[volt].refresh_current_voltage()
+                log_string += ". Voltage sensor " + \
+                    str(volt) + ": " + \
+                    str(self.voltage_sensors[volt].get_current_voltage())
 
             for curr in self.current_sensors:
-                await self.current_sensors[curr].refresh_current_current() 
-                log_string += ". Current sensor " + str(curr) + ": " + str(self.current_sensors[curr].get_current_current())
-            
+                await self.current_sensors[curr].refresh_current_current()
+                log_string += ". Current sensor " + \
+                    str(curr) + ": " + \
+                    str(self.current_sensors[curr].get_current_current())
+
             for fan in self.fan_sensors:
-                log_string += ". Fan " + str(curr) + " target state: " + str(self.fan_sensors[fan].target_fan_state) + ", current state: " +  str(self.fan_sensors[fan].current_fan_state)
+                log_string += ". Fan " + str(curr) + " target state: " + str(
+                    self.fan_sensors[fan].target_fan_state) + ", current state: " + str(self.fan_sensors[fan].current_fan_state)
 
             self.log.info("Coolbox readings: " + log_string)
 
@@ -410,7 +423,7 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
     @property
     def temperature_sensors(self):
         return self._temperature_sensors
-    
+
     @temperature_sensors.setter
     def temperature_sensors(self, sensor):
         self._temperature_sensors = sensor
@@ -424,7 +437,7 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
     @property
     def fan_sensors(self):
         return self._fan_sensors
-    
+
     @fan_sensors.setter
     def temperature_sensors(self, sensor):
         self._fan_sensors = sensor
@@ -437,7 +450,7 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
 
     @property
     def voltage_sensors(self):
-        return self._voltage_sensors 
+        return self._voltage_sensors
 
     @piccoloGET
     def get_voltage_sensors(self):
@@ -447,14 +460,13 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
 
     @property
     def current_sensors(self):
-        return self._current_sensors 
+        return self._current_sensors
 
     @piccoloGET
     def get_current_sensors(self):
         current = list(self.current_sensors.keys())
         current.sort()
         return current
-
 
 
 if __name__ == '__main__':

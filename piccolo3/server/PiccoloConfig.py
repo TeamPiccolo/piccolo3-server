@@ -59,7 +59,6 @@ defaultCfgStr = """
   [[fans]]
     [[[__many__]]]
       fan_on = boolean(deafult=False)
-      fan_on = boolean(deafult=False)
 
 [output]
   # overwrite output files when clobber is set to True
