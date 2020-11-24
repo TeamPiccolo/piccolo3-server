@@ -67,8 +67,8 @@ class PiccoloSerialConnection(PiccoloBaseComponent):
             self.log.debug("Couldn't open serial connection to the coolbox.")
             self.log.debug("Serial error:", e)
 
-    def initialise_coolbox(self):
-        with (yield from self._serial_lock):
+    async def initialise_coolbox(self):
+        async with self._serial_lock:
             try:
                 self.ser.open()
                 if self.ser.isOpen():
@@ -88,7 +88,7 @@ class PiccoloSerialConnection(PiccoloBaseComponent):
                 self.log.error(e)
 
     async def serial_command(self, cmd_str, verbose_message=""):
-        with self._serial_lock:
+        async with self._serial_lock:
             try:
                 self.ser.open()
                 if self.ser.isOpen():
