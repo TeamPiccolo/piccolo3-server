@@ -39,11 +39,16 @@ class PiccoloSerialConnection(PiccoloBaseComponent):
         super().__init__()
         self.verbose = False
         self.tsleep = 0.001
+        self._error_value = 9999.99
         self._serial_port = serial_port
         self.ser = None
         self._serial_lock = asyncio.Lock()
         self.initialize_serial()
         self.initialise_coolbox()
+
+    @property
+    def error_value(self):
+        return self._error_value
 
     @property
     def serial_port(self):
@@ -107,6 +112,7 @@ class PiccoloSerialConnection(PiccoloBaseComponent):
             except Exception as e:
                 self.log.error("Couldn't send serial command " + cmd_str)
                 self.log.error(e)
+                return self.error_value
 
 
 class PiccoloTemperature(PiccoloNamedComponent):
