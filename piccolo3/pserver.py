@@ -22,7 +22,8 @@ import asyncio
 import aiocoap.resource as resource
 import aiocoap
 import logging
-import os, sys
+import os
+import sys
 
 try:
     import piccolo3.server.PiccoloHardware
@@ -30,11 +31,12 @@ try:
 except:
     piccoloStatusLED = None
 
+
 def piccolo_server(serverCfg):
 
     log = logging.getLogger("piccolo.server")
 
-    log.info("piccolo3 server version %s"%piccolo.__version__)
+    log.info("piccolo3 server version %s" % piccolo.__version__)
 
     # creat system info
     psys = piccolo.PiccoloSysinfo()
@@ -45,8 +47,9 @@ def piccolo_server(serverCfg):
                                    mount=serverCfg.cfg['datadir']['mount'])
     # read the piccolo instrument configuration file
     piccoloCfg = piccolo.PiccoloConfig()
-    cfgFilename = pdata.join(serverCfg.cfg['config']) # Usually /mnt/piccolo2_data/piccolo.config
-    piccoloCfg.readCfg(cfgFilename) 
+    # Usually /mnt/piccolo2_data/piccolo.config
+    cfgFilename = pdata.join(serverCfg.cfg['config'])
+    piccoloCfg.readCfg(cfgFilename)
 
     # initialise the coolbox
     if 'coolbox' in piccoloCfg.cfg:
@@ -61,19 +64,19 @@ def piccolo_server(serverCfg):
 
     # initialise the spectrometers
     try:
-        spectrometers = piccolo.PiccoloSpectrometers(piccoloCfg.cfg['spectrometers'],shutters.keys())
+        spectrometers = piccolo.PiccoloSpectrometers(
+            piccoloCfg.cfg['spectrometers'], shutters.keys())
     except Exception as e:
         log.error('failed to initialise spectrometers: {}'.format(str(e)))
         sys.exit(1)
 
     # initialise the piccolo controller
-    controller = piccolo.PiccoloControl(pdata,shutters,spectrometers)
+    controller = piccolo.PiccoloControl(pdata, shutters, spectrometers)
 
     root = resource.Site()
     # add the components
-    for c in [psys,pdata,coolbox,shutters,spectrometers,controller]:
+    for c in [psys, pdata, coolbox, shutters, spectrometers, controller]:
         root.add_resource(*c.coapSite)
-
 
     root.add_resource(('.well-known', 'core'),
                       resource.WKCResource(root.get_resources_as_linkheader))
@@ -81,16 +84,14 @@ def piccolo_server(serverCfg):
                                                        bind=serverCfg.bind,
                                                        loggername='piccolo.coapserver'))
 
-
     if piccoloStatusLED is not None:
         piccoloStatusLED.blink()
     else:
         log.warning('no hardware support')
-    
+
     asyncio.get_event_loop().run_forever()
 
 
-    
 def main():
     serverCfg = piccolo.PiccoloServerConfig()
 
@@ -104,12 +105,12 @@ def main():
         try:
             import lockfile
         except ImportError:
-            print ("The 'lockfile' Python module is required to run Piccolo Server. Ensure that version 0.12 or later of lockfile is installed.")
+            print("The 'lockfile' Python module is required to run Piccolo Server. Ensure that version 0.12 or later of lockfile is installed.")
             sys.exit(1)
         try:
             from lockfile.pidlockfile import PIDLockFile
         except ImportError:
-            print ("An outdated version of the 'lockfile' Python module is installed. Piccolo Server requires at least version 0.12 or later of lockfile.")
+            print("An outdated version of the 'lockfile' Python module is installed. Piccolo Server requires at least version 0.12 or later of lockfile.")
             sys.exit(1)
         from lockfile import AlreadyLocked, NotLocked
 
@@ -120,25 +121,26 @@ def main():
         except AlreadyLocked:
             try:
                 os.kill(pidfile.read_pid(), 0)
-                print ('Process already running!')
+                print('Process already running!')
                 exit(1)
-            except OSError:  #No process with locked PID
-                print ('PID file exists but process is dead')
+            except OSError:  # No process with locked PID
+                print('PID file exists but process is dead')
                 pidfile.break_lock()
         try:
             pidfile.release()
         except NotLocked:
             pass
 
-        pstd = open(serverCfg.cfg['daemon']['logfile'],'w')
+        pstd = open(serverCfg.cfg['daemon']['logfile'], 'w')
         with daemon.DaemonContext(pidfile=pidfile,
-                                  files_preserve = [ handler.stream ],
+                                  files_preserve=[handler.stream],
                                   stderr=pstd):
             # start piccolo
             piccolo_server(serverCfg)
     else:
         # start piccolo
         piccolo_server(serverCfg)
+
 
 if __name__ == '__main__':
     main()

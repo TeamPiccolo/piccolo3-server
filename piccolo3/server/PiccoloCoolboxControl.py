@@ -35,7 +35,7 @@ from random import randint
 class PiccoloSerialConnection(PiccoloBaseComponent):
     """Manage serial connection for controlling and managing the coolbox"""
 
-    async def __init__(self, serial_port="/dev/ttyUSB0"):
+    def __init__(self, serial_port="/dev/ttyUSB0"):
         super().__init__()
         self.verbose = False
         self.tsleep = 0.001
@@ -44,7 +44,8 @@ class PiccoloSerialConnection(PiccoloBaseComponent):
         self.ser = None
         self._serial_lock = asyncio.Lock()
         self.initialize_serial()
-        await self.initialise_coolbox()
+        loop = asyncio.get_event_loop()
+        task = loop.create_task(self.initialise_coolbox())
 
     @property
     def error_value(self):
@@ -357,13 +358,13 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
             "current", serial_connection=self.serial_connection)}
         self._fan_sensors = {}
         self._temperature_sensors = {}
-        print("coolbox_cfg['fans']", coolbox_cfg['coolbox']['fans'])
-        for fan in coolbox_cfg['coolbox']['fans']:
-            self.fan_sensors[temp] = PiccoloFan(
+        print("coolbox_cfg['fans']", coolbox_cfg['fans'])
+        for fan in coolbox_cfg['fans']:
+            self.fan_sensors[fan] = PiccoloFan(
                 fan, serial_connection=self.serial_connection, fan_state=coolbox_cfg['fans'][fan]['fan_on'])
         print("coolbox_cfg['temperature_sensors']",
-              coolbox_cfg['coolbox']['temperature_sensors'])
-        for temp in coolbox_cfg['coolbox']['temperature_sensors']:
+              coolbox_cfg['temperature_sensors'])
+        for temp in coolbox_cfg['temperature_sensors']:
             # should this be self._temperatures_sensors, as no setter?
             self.temperature_sensors[temp] = PiccoloTemperature(
                 temp, serial_connection=self.serial_connection, target=coolbox_cfg['temperature_sensors'][temp]['target'])
