@@ -58,7 +58,7 @@ defaultCfgStr = """
        target = float(default=20.) # target temperature
   [[fans]]
     [[[__many__]]]
-      fan_on = boolean(deafult=False)
+      fan_on = boolean(default=False)
 
 [output]
   # overwrite output files when clobber is set to True
