@@ -370,6 +370,7 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
             # should this be self._temperatures_sensors, as no setter?
             self.temperature_sensors[temp] = PiccoloTemperature(
                 temp, serial_connection=self.serial_connection, target=coolbox_cfg['temperature_sensors'][temp]['target'])
+            print("self.temperature_sensors:", self.temperature_sensors)
 
         for fan in self.fan_sensors:
             self.coapResources.add_resource(
@@ -493,8 +494,6 @@ if __name__ == '__main__':
 
     coolbox_cfg = {}
     coolbox_cfg['update_interval'] = 5
-    coolbox_cfg['temperature_sensors'] = {'temp1': {'target': 10},
-                                          'temp2': {'target': 10}}
 
     coolbox = PiccoloCoolboxControl(coolbox_cfg)
 
