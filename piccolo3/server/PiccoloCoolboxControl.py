@@ -348,7 +348,6 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
 
     def __init__(self, coolbox_cfg):
         super().__init__()
-        print("coolbox_cfg", coolbox_cfg)
         self._update_interval = coolbox_cfg['update_interval']
         self._serial_connection = PiccoloSerialConnection(
             serial_port=coolbox_cfg['serial_port'])
@@ -358,17 +357,10 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
             "current", serial_connection=self.serial_connection)}
         self._fan_sensors = {}
         self._temperature_sensors = {}
-        print("coolbox_cfg['fans']", coolbox_cfg['fans'])
         for fan in coolbox_cfg['fans']:
-            print("fan in coolbox config loop:", fan)
             self.fan_sensors[fan] = PiccoloFan(
                 fan, serial_connection=self.serial_connection, fan_state=coolbox_cfg['fans'][fan]['fan_on'])
-        print("coolbox_cfg['temperature_sensors']",
-              coolbox_cfg['temperature_sensors'])
         for temp in coolbox_cfg['temperature_sensors']:
-            print("temp in coolbox config loop:", temp)
-            # should this be self._temperatures_sensors, as no setter?
-            print("self.temperature_sensors:", self.temperature_sensors)
             self.temperature_sensors[temp] = PiccoloTemperature(
                 temp, serial_connection=self.serial_connection, target=coolbox_cfg['temperature_sensors'][temp]['target'])
 
@@ -397,33 +389,25 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
         """monitor coolbox"""
 
         while True:
-            # read temperature from coolbox
-            # for temp in self.temperature_sensors:
-            #     self.temperature_sensors[temp].current_temp = randint(
-            #         0, abs(self.temperature_sensors[temp].target_temp))
             log_string = ""
-            print("temp sensors:", self.temperature_sensors)
             for temp in self.temperature_sensors:
                 await self.temperature_sensors[temp].refresh_current_temp()
                 log_string += "Temperature sensor " + \
                     str(temp) + ": " + \
                     str(self.temperature_sensors[temp].get_current_temp())
 
-            print("voltage sensors:", self.voltage_sensors)
             for volt in self.voltage_sensors:
                 await self.voltage_sensors[volt].refresh_current_voltage()
                 log_string += ". Voltage sensor " + \
                     str(volt) + ": " + \
                     str(self.voltage_sensors[volt].get_current_voltage())
 
-            print("current_sensors:", self.current_sensors)
             for curr in self.current_sensors:
                 await self.current_sensors[curr].refresh_current_current()
                 log_string += ". Current sensor " + \
                     str(curr) + ": " + \
                     str(self.current_sensors[curr].get_current_current())
 
-            print("fan_sensors:", self.fan_sensors)
             for fan in self.fan_sensors:
                 log_string += ". Fan " + str(curr) + " target state: " + str(
                     self.fan_sensors[fan].target_fan_state) + ", current state: " + str(self.fan_sensors[fan].current_fan_state)
