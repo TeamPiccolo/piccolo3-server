@@ -368,9 +368,9 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
         for temp in coolbox_cfg['temperature_sensors']:
             print("temp in coolbox config loop:", temp)
             # should this be self._temperatures_sensors, as no setter?
+            print("self.temperature_sensors:", self.temperature_sensors)
             self.temperature_sensors[temp] = PiccoloTemperature(
                 temp, serial_connection=self.serial_connection, target=coolbox_cfg['temperature_sensors'][temp]['target'])
-            print("self.temperature_sensors:", self.temperature_sensors)
 
         for fan in self.fan_sensors:
             self.coapResources.add_resource(
@@ -455,7 +455,7 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
         return self._fan_sensors
 
     @fan_sensors.setter
-    def temperature_sensors(self, sensor):
+    def fan_sensors(self, sensor):
         self._fan_sensors = sensor
 
     @piccoloGET
