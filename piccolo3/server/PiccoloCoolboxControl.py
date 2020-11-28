@@ -14,7 +14,7 @@
 
 # You should have received a copy of the GNU General Public License
 # along with piccolo3-server.  If not, see <http://www.gnu.org/licenses/>.
-
+# TODO: Ask Rick where values need to be written to EEPROM
 
 """
 .. moduleauthor:: Magnus Hagdorn <magnus.hagdorn@ed.ac.uk>
@@ -360,18 +360,20 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
         self._temperature_sensors = {}
         print("coolbox_cfg['fans']", coolbox_cfg['fans'])
         for fan in coolbox_cfg['fans']:
+            print("fan in coolbox config loop:", fan)
             self.fan_sensors[fan] = PiccoloFan(
                 fan, serial_connection=self.serial_connection, fan_state=coolbox_cfg['fans'][fan]['fan_on'])
         print("coolbox_cfg['temperature_sensors']",
               coolbox_cfg['temperature_sensors'])
         for temp in coolbox_cfg['temperature_sensors']:
+            print("temp in coolbox config loop:", temp)
             # should this be self._temperatures_sensors, as no setter?
             self.temperature_sensors[temp] = PiccoloTemperature(
                 temp, serial_connection=self.serial_connection, target=coolbox_cfg['temperature_sensors'][temp]['target'])
 
-        for fan in self.temperature_sensors:
+        for fan in self.fan_sensors:
             self.coapResources.add_resource(
-                [temp], self.temperature_sensors[temp].coapResources)
+                [fan], self.fan_sensors[fan].coapResources)
 
         for temp in self.temperature_sensors:
             self.coapResources.add_resource(
