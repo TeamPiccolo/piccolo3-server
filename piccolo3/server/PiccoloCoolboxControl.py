@@ -55,6 +55,13 @@ class PiccoloSerialConnection(PiccoloBaseComponent):
     def serial_port(self):
         return self._serial_port
 
+    @serial_port.setter
+    def serial_port(self, serial_port):
+        self._serial_port = serial_port
+        self.initialize_serial()
+        loop = asyncio.get_event_loop()
+        task = loop.create_task(self.initialise_coolbox())
+
     def initialize_serial(self):
         try:
             self.ser = serial.Serial(
@@ -299,7 +306,6 @@ class PiccoloFan(PiccoloNamedComponent):
 
     @target_fan_state.setter
     def target_fan_state(self, fan_state):
-        print("in target fan state setter")
         self._target_fan_state = True if fan_state == 1 else False
         # do something to the coolbox
         if self.name == "fan1":
@@ -318,7 +324,6 @@ class PiccoloFan(PiccoloNamedComponent):
 
     @piccoloPUT
     def set_target_fan_state(self, fan_state):
-        print("In set target fan state")
         self.target_fan_state = fan_state
 
     @piccoloChanged
