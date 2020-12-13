@@ -373,8 +373,9 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
             self.temperature_sensors[temp] = PiccoloTemperature(
                 temp, serial_connection=self.serial_connection, target=coolbox_cfg['temperature_sensors'][temp]['target'])
 
-        self.coapResources.add_resource(
-            self.serial_connection, self.serial_connection.coapResources)
+        for serial in self.serial_connection:
+            self.coapResources.add_resource(
+                [serial], self.serial_connection[serial].coapResources)
 
         for fan in self.fan_sensors:
             self.coapResources.add_resource(
