@@ -55,13 +55,6 @@ class PiccoloSerialConnection(PiccoloBaseComponent):
     def serial_port(self):
         return self._serial_port
 
-    @serial_port.setter
-    def serial_port(self, serial_port):
-        self._serial_port = serial_port
-        self.initialize_serial()
-        loop = asyncio.get_event_loop()
-        task = loop.create_task(self.initialise_coolbox())
-
     def initialize_serial(self):
         try:
             self.ser = serial.Serial(
