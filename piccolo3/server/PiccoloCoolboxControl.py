@@ -303,9 +303,9 @@ class PiccoloFan(PiccoloNamedComponent):
         self._target_fan_state = fan_state
         # do something to the coolbox
         if self.name == "fan1":
-            cmd_str = "$R16="+fan_state+"\r\n"
+            cmd_str = "$R16="+str(fan_state)+"\r\n"
         else:
-            cmd_str = "$R23="+fan_state+"\r\n"
+            cmd_str = "$R23="+str(fan_state)+"\r\n"
         loop = asyncio.get_event_loop()
         task = loop.create_task(self.serial_connection.serial_command(cmd_str))
 
