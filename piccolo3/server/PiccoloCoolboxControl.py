@@ -141,11 +141,11 @@ class PiccoloTemperature(PiccoloNamedComponent):
         return self._target_temp
 
     @target_temp.setter
-    async def target_temp(self, temp):
+    def target_temp(self, temp):
         self._target_temp = temp
         # do something to the coolbox
         cmd_str = "$R0=" + str(temp) + "\r\n"
-        await self.serial_connection.serial_command(cmd_str)
+        self.serial_connection.serial_command(cmd_str)
 
         if self._target_temp_changed is not None:
             self._target_temp_changed()
@@ -156,6 +156,7 @@ class PiccoloTemperature(PiccoloNamedComponent):
 
     @piccoloPUT
     def set_target_temp(self, temp):
+        print("in set target temp in piccoloPUT")
         self.target_temp = temp
 
     @piccoloChanged
@@ -168,6 +169,7 @@ class PiccoloTemperature(PiccoloNamedComponent):
 
     @current_temp.setter
     def current_temp(self, temp):
+        print("in current temp setter")
         if temp != self._current_temp:
             self._current_temp = temp
             if self._current_temp_changed is not None:
@@ -298,6 +300,7 @@ class PiccoloFan(PiccoloNamedComponent):
 
     @target_fan_state.setter
     async def target_fan_state(self, fan_state):
+        print("in target fan state setter")
         self._target_fan_state = fan_state
         # do something to the coolbox
         if self.name == "fan1":
@@ -315,6 +318,7 @@ class PiccoloFan(PiccoloNamedComponent):
 
     @piccoloPUT
     def set_target_fan_state(self, fan_state):
+        print("In set target fan state")
         self.target_fan_state = fan_state
 
     @piccoloChanged
