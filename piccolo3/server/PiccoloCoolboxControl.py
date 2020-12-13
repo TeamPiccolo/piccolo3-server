@@ -145,7 +145,8 @@ class PiccoloTemperature(PiccoloNamedComponent):
         self._target_temp = temp
         # do something to the coolbox
         cmd_str = "$R0=" + str(temp) + "\r\n"
-        await self.serial_connection.serial_command(cmd_str)
+        loop = asyncio.get_event_loop()
+        task = loop.create_task(self.serial_connection.serial_command(cmd_str))
 
         if self._target_temp_changed is not None:
             self._target_temp_changed()
@@ -154,16 +155,10 @@ class PiccoloTemperature(PiccoloNamedComponent):
     def get_target_temp(self):
         return self.target_temp
 
-    async def _set_target_temp(self, temp):
-        print("in set target temp in piccoloPUT")
-        self.target_temp = temp
-
     @piccoloPUT
     def set_target_temp(self, temp):
         print("in set target temp in piccoloPUT")
-        # self.target_temp = temp
-        loop = asyncio.get_event_loop()
-        task = loop.create_task(self._set_target_temp(temp))
+        self.target_temp = temp
 
     @piccoloChanged
     def callback_target_temp(self, cb):
