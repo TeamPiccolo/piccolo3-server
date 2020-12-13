@@ -141,7 +141,7 @@ class PiccoloTemperature(PiccoloNamedComponent):
         return self._target_temp
 
     @target_temp.setter
-    async def target_temp(self, temp):
+    def target_temp(self, temp):
         self._target_temp = temp
         # do something to the coolbox
         cmd_str = "$R0=" + str(temp) + "\r\n"
