@@ -423,6 +423,9 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
                 log_string += ". Fan " + str(curr) + " target state: " + str(
                     self.fan_sensors[fan].target_fan_state) + ", current state: " + str(self.fan_sensors[fan].current_fan_state)
 
+            log_string += ". Serial location: " + \
+                str(self.serial_connection.serial_port)
+
             self.log.info("Coolbox readings: " + log_string)
 
             await asyncio.sleep(self._update_interval)
