@@ -157,7 +157,7 @@ class PiccoloTemperature(PiccoloNamedComponent):
     @piccoloPUT
     async def _set_target_temp(self, temp):
         print("in set target temp in piccoloPUT")
-        await self.target_temp = temp
+        self.target_temp = temp
 
     def set_target_temp(self, temp):
         print("in set target temp in piccoloPUT")
