@@ -163,7 +163,7 @@ class PiccoloTemperature(PiccoloNamedComponent):
         print("in set target temp in piccoloPUT")
         # self.target_temp = temp
         loop = asyncio.get_event_loop()
-        task = loop.create_task(self._set_target_temp())
+        task = loop.create_task(self._set_target_temp(temp))
 
     @piccoloChanged
     def callback_target_temp(self, cb):
@@ -404,7 +404,9 @@ class PiccoloCoolboxControl(PiccoloBaseComponent):
                 await self.temperature_sensors[temp].refresh_current_temp()
                 log_string += "Temperature sensor " + \
                     str(temp) + ": " + \
-                    str(self.temperature_sensors[temp].get_current_temp())
+                    str(self.temperature_sensors[temp].get_current_temp()) + \
+                    ", and target temp: " + \
+                    str(self.temperature_sensors[temp].get_target_temp())
 
             for volt in self.voltage_sensors:
                 await self.voltage_sensors[volt].refresh_current_voltage()
