@@ -300,7 +300,7 @@ class PiccoloFan(PiccoloNamedComponent):
     @target_fan_state.setter
     def target_fan_state(self, fan_state):
         print("in target fan state setter")
-        self._target_fan_state = fan_state
+        self._target_fan_state = True if fan_state == 1 else False
         # do something to the coolbox
         if self.name == "fan1":
             cmd_str = "$R16="+str(fan_state)+"\r\n"
