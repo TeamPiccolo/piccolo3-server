@@ -1,3 +1,6 @@
+2021-01-11 Magnus Hagdorn
+ * piccolo3/server/PiccoloSpectrometer.py: fix recording of temperature
+
 2020-11-11 Magnus Hagdorn
  * piccolo3/server/PiccoloScheduler.py: add DummyJob class for emitting jobs
    that are not in the DB; add options to enable power-off time and power

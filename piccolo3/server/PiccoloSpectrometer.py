@@ -387,6 +387,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                         self.log.info('TEC disenabled')
                 except Exception as e:
                     result = str(e)
+                self.meta['TemperatureEnabled'] = task[1]
             self.results.put(result)
         elif task[0] == 'targetTemp':
             result = 'ok'
@@ -533,6 +534,8 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
 
         # record data
 
+        spectrum.update(self.meta)
+
         if self.is_dummy:
             if self.dummy_spectra:
                 # If spectrometer is None, then simulate a spectrometer, for
@@ -546,7 +549,6 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
             pixels = self._get_spectrum(self.get_currentIntegrationTime(channel))
             spectrum['Temperature'] = self.currentTemperature
 
-        spectrum.update(self.meta)
         spectrum['IntegrationTime'] = self.get_currentIntegrationTime(channel)
         if channel in self._calibration:
             spectrum['WavelengthCalibrationCoefficientsPiccolo'] = self._calibration[channel]
