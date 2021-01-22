@@ -65,7 +65,7 @@ class QuietTime(Base):
     __tablename__ = 'quiettime'
 
     label = sqlalchemy.Column(sqlalchemy.String,primary_key=True)
-    time = sqlalchemy.Column(sqlalchemy.Time)
+    datetime = sqlalchemy.Column(DateTimeTZ(timezone=True))
     
 
 class DummyJob:
@@ -182,16 +182,25 @@ class PiccoloScheduler(PiccoloBaseComponent):
         
         self._quietStart = self.session.query(QuietTime).filter(QuietTime.label == 'start').one_or_none()
         if self._quietStart is None:
-            self._quietStart = QuietTime(label='start',time=self._parseTime('22:00:00'))
+            self._quietStart = QuietTime(label='start',
+                                         datetime=datetime.datetime.combine(
+                                             self.now().date(),
+                                             self._parseTime('22:00:00'),
+                                             tzinfo=pytz.utc))
             self.session.add(self._quietStart)
         self._quietStart_changed = None
 
         self._quietEnd = self.session.query(QuietTime).filter(QuietTime.label == 'end').one_or_none()
         if self._quietEnd is None:
-            self._quietEnd = QuietTime(label='end',time=self._parseTime('04:00:00'))
+            self._quietEnd = QuietTime(label='end',
+                                       datetime=datetime.datetime.combine(
+                                           self._quietStart.datetime.date()+datetime.timedelta(days=1),
+                                           self._parseTime('04:00:00'),
+                                           tzinfo=pytz.utc))
             self.session.add(self._quietEnd)
         self._quietEnd_changed = None
         self.session.commit()
+        self._update_quietTime()
 
         self._jobs_changed = None
 
@@ -258,12 +267,7 @@ class PiccoloScheduler(PiccoloBaseComponent):
         if poff:
             now = self.now()
             # check that quiet time period is long enough to hold the power off time
-            qs = datetime.datetime.combine(now.date(),self.quietStart,tzinfo=pytz.utc)
-            qe = datetime.datetime.combine(now.date(),self.quietEnd,  tzinfo=pytz.utc)
-            if qs > qe:
-                # add a day to account for day boundary
-                qe += datetime.timedelta(1)
-            if qe-qs < 2*datetime.timedelta(seconds=self.powerDelay):
+            if self.quietEnd - self.quietStart < 2*datetime.timedelta(seconds=self.powerDelay):
                 if not self._powerOffTooShortWarning:
                     self.log.warning('power off period disabled because quiet time is too short')
                     self._powerOffTooShortWarning = True
@@ -279,7 +283,10 @@ class PiccoloScheduler(PiccoloBaseComponent):
         return self.quietStart.strftime("%H:%M:%S%z")
     @piccoloPUT
     def set_quietStart(self,t):
-        self._quietStart.time = self._parseTime(t)
+        self._quietStart.datetime = datetime.datetime.combine(
+            self.now().date(),
+            self._parseTime(t),
+            tzinfo=pytz.utc)
         self.session.commit()
         if self._quietStart_changed is not None:
             self._quietStart_changed()
@@ -288,16 +295,21 @@ class PiccoloScheduler(PiccoloBaseComponent):
         self._quietStart_changed = cb
     @property
     def quietStart(self):
-        qs = self._quietStart.time
-        if qs is not None:
-            return qs.replace(tzinfo=pytz.utc)
+        qs = self._quietStart.datetime
+        return qs
 
     @piccoloGET
     def get_quietEnd(self):
         return self.quietEnd.strftime("%H:%M:%S%z")
     @piccoloPUT
     def set_quietEnd(self,t):
-        self._quietEnd.time = self._parseTime(t)
+        qe =datetime.datetime.combine(
+            self.quietStart.date(),
+            self._parseTime(t),
+            tzinfo=pytz.utc)
+        if qe < self.quietStart:
+            qe += datetime.timedelta(days=1)
+        self._quietEnd.datetime = qe
         self.session.commit()
         if self._quietEnd_changed is not None:
             self._quietEnd_changed()
@@ -306,10 +318,19 @@ class PiccoloScheduler(PiccoloBaseComponent):
         self._quietEnd_changed = cb
     @property
     def quietEnd(self):
-        qe = self._quietEnd.time
-        if qe is not None:
-            return qe.replace(tzinfo=pytz.utc)
+        qe = self._quietEnd.datetime
+        return qe
 
+    def _update_quietTime(self):
+        now = self.now()
+        if self.quietEnd < now:
+            # compute number of days until next quiet end
+            dt = datetime.timedelta(days=max(1, (now-self.quietEnd).days))
+            self.log.info(f'updating quiet perioed by adding {dt}.')
+            self._quietStart.datetime += dt
+            self._quietEnd.datetime += dt
+            self.session.commit()
+            
     @piccoloGET
     def get_powerDelay(self):
         return self.powerDelay
@@ -327,14 +348,10 @@ class PiccoloScheduler(PiccoloBaseComponent):
         return int(self._powerDelay.value)
     @property
     def powerOffTime(self):
-        t = datetime.datetime.combine(self.now().date(),self.quietStart,tzinfo=pytz.utc)
-        t += datetime.timedelta(seconds=self.powerDelay)
-        return t.time()
+        return self.quietStart + datetime.timedelta(seconds=self.powerDelay)
     @property
     def powerOnTime(self):
-        t = datetime.datetime.combine(self.now().date(),self.quietEnd,tzinfo=pytz.utc)
-        t -= datetime.timedelta(seconds=self.powerDelay)
-        return t.time()
+        return self.quietEnd - datetime.timedelta(seconds=self.powerDelay)
 
     @piccoloGET
     def get_jobs(self):
@@ -386,11 +403,6 @@ class PiccoloScheduler(PiccoloBaseComponent):
 
         if enabled:
             now = self.now()
-            tstart = datetime.datetime.combine(now.date(),tstart,tzinfo=pytz.utc)
-            tend   = datetime.datetime.combine(now.date(),tend,  tzinfo=pytz.utc)
-            if tstart > tend:
-                # add a day to account for day boundary
-                tend += datetime.timedelta(1)
             if tstart < now < tend:
                 inTime = True
         return inTime
@@ -484,6 +496,7 @@ class PiccoloScheduler(PiccoloBaseComponent):
                 self.log.info('power off time ended, scheduling power on')
                 self._powered_off = False
                 yield DummyJob(('power_on',))
+        self._update_quietTime()
 
         # loop over active/suspended jobs
         for job in self.session.query(PiccoloScheduledJob).filter(
