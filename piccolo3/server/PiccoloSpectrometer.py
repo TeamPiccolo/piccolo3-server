@@ -176,6 +176,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
                 self._meta = None
             self.log.info('connected to spectrometer %s'%self.serial)
             self.status = PiccoloSpectrometerStatus.IDLE
+            self.enableTEC(True)
             self.minIntegrationTime = 0
 
     def disconnect(self):
@@ -195,6 +196,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         if self.status == PiccoloSpectrometerStatus.POWERED_OFF:
             self.log.warning('spectrometer is already powered-off')
         else:
+            self.enableTEC(False)
             self.disconnect()
             if self.power_switch is not None:
                 self.log.info('powering off spectrometer {}'.format(self.serial))
@@ -214,7 +216,22 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
             self.power_switch.off()
             self.status = PiccoloSpectrometerStatus.DISCONNECTED
         self.connect()
-            
+
+    def enableTEC(self,state):
+        result = 'ok'
+        if self.haveTEC:
+            try:
+                self.spec.f.thermo_electric.enable_tec(state)
+                if state:
+                    self.log.info('TEC enabled')
+                else:
+                    self.log.info('TEC disenabled')
+            except Exception as e:
+                result = str(e)
+                self.log.error(result)
+            self.meta['TemperatureEnabled'] = state
+        return result
+
     @property
     def is_dummy(self):
         if self.status < PiccoloSpectrometerStatus.IDLE:
@@ -377,17 +394,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
         elif task[0] == 'currentTemp':
             self.results.put(self.currentTemperature)
         elif task[0] == 'enableTEC':
-            result = 'ok'
-            if self.haveTEC:
-                try:
-                    self.spec.f.thermo_electric.enable_tec(task[1])
-                    if task[1]:
-                        self.log.info('TEC enabled')
-                    else:
-                        self.log.info('TEC disenabled')
-                except Exception as e:
-                    result = str(e)
-                self.meta['TemperatureEnabled'] = task[1]
+            result = self.enableTEC(task[1])
             self.results.put(result)
         elif task[0] == 'targetTemp':
             result = 'ok'
