@@ -342,7 +342,7 @@ class PiccoloSpectrometerWorker(PiccoloWorkerThread):
     def minIntegrationTime(self,t):
         t = int(t)
         if not self.is_dummy:
-            t = max(self.spec.minimum_integration_time_micros/1000.,t)
+            t = max(self.spec.integration_time_micros_limits[0]/1000.,t)
         t = int(t)
         if t == self._minIntegrationTime:
             return
