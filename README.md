@@ -1,5 +1,5 @@
-Piccolo3 Server
-===============
+# Piccolo3 Server
+
 This is the server component of the piccolo3 spectral system.
 
 The piccolo3 server is multithreaded python3 application that controls 
@@ -14,15 +14,23 @@ framework for co-routines.
 The piccolo3 server is designed to run on a raspberry pi system. It makes use 
 of the GPIO system to control the shutters.
 
-Installation
-------------
-On an up-to-date rapbian buster system install the following packages
+## Installation
+
+On an up-to-date Raspberry Pi OS bullseye system install the following packages
 ```
 apt install python3-numpy python3-psutil python3-configobj python3-daemon \
             python3-tz python3-gpiozero python3-dateutil python3-lockfile \
-			python3-bitarray python3-scipy python3-sqlalchemy python3-usb \
-			python3-virtualenv
+            python3-bitarray python3-scipy python3-sqlalchemy python3-usb \
+            python3-virtualenv
 ```
+
+Install the seabreeze package:
+```
+sudo apt install build-essential libusb-dev
+sudo pip install seabreeze
+sudo seabreeze_os_setup
+```
+The last steps copies the oceanoptics udev rule os_support/10-oceanoptics.rule from the [seabreeze package](https://github.com/ap--/python-seabreeze.git) to `/etc/udev/rules.d`.
 
 Create a virtual environment with access to system packages
 ```
@@ -36,8 +44,8 @@ and activate it
 Install the [piccolo3-common](https://github.com/TeamPiccolo/piccolo3-common)
 package and then the server package.
 
-Setup
------
+## Setup
+
 The piccolo3 server is configured using two config files:
 1. the server configuration typically stored in `/etc/piccolo.cfg`:
 ```
@@ -66,8 +74,8 @@ debug = False
 configured in the server configuration file. Have a long at the example file
 [pdata/piccolo.config](pdata/piccolo.config).
 
-Running the Server
-------------------
+## Running the Server
+
 Once configured, you can run the server using
 ```
 piccolo3-server -s /etc/piccolo.cfg
